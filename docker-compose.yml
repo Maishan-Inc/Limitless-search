@@ -1,0 +1,132 @@
+services:
+  limitless-search:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 构建时环境变量 (NEXT_PUBLIC_* 需要在构建时嵌入)
+        # 后端 API 地址（单容器内指向同容器后端）
+        - NEXT_PUBLIC_API_BASE=http://127.0.0.1:8888
+        # 人机验证配置: "turnstile" | "hcaptcha" | "none"
+        - NEXT_PUBLIC_CAPTCHA_PROVIDER=none
+        # Cloudflare Turnstile Site Key
+        - NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+        # hCaptcha Site Key
+        - NEXT_PUBLIC_HCAPTCHA_SITE_KEY=
+        # AI 原版名称推荐开关 : "true" | "false"
+        - NEXT_PUBLIC_AI_SUGGEST_ENABLED=true
+        # 触发 AI 提示的结果数量阈值（默认 50）
+        - NEXT_PUBLIC_AI_SUGGEST_THRESHOLD=50
+        # AI 推荐是否需要先完成人机验证 : "true" | "false"
+        - NEXT_PUBLIC_AI_SUGGEST_REQUIRE_CAPTCHA=false
+        # AI 排行榜前端显示开关: true=导航栏显示“排行榜”入口，false=前端完全隐藏入口
+        - NEXT_PUBLIC_AI_RANKINGS_ENABLED=false
+    image: limitless-search:local
+    container_name: limitless-search
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "3200:3200"
+    expose:
+      - "8888" # 后端监听端口，不开放到主机公网，只在容器内部/同网络内访问
+    environment:
+      # 后端监听端口
+      - PORT=8888
+      # 前端监听端口
+      - WEB_PORT=3200
+      - CHANNELS=tgsearchers4,Aliyun_4K_Movies,bdbdndn11,yunpanx,bsbdbfjfjff,yp123pan,sbsbsnsqq,yunpanxunlei,tianyifc,BaiduCloudDisk,txtyzy,peccxinpd,gotopan,PanjClub,kkxlzy,baicaoZY,MCPH01,MCPH02,MCPH03,bdwpzhpd,ysxb48,jdjdn1111,yggpan,MCPH086,zaihuayun,Q66Share,ucwpzy,shareAliyun,alyp_1,dianyingshare,Quark_Movies,XiangxiuNBB,ydypzyfx,ucquark,xx123pan,yingshifenxiang123,zyfb123,tyypzhpd,tianyirigeng,cloudtianyi,hdhhd21,Lsp115,oneonefivewpfx,qixingzhenren,taoxgzy,Channel_Shares_115,tyysypzypd,vip115hot,wp123zy,yunpan139,yunpan189,yunpanuc,yydf_hzl,leoziyuan,pikpakpan,Q_dongman,yoyokuakeduanju,TG654TG,WFYSFX02,QukanMovie,yeqingjie_GJG666,movielover8888_film3,Baidu_netdisk,D_wusun,FLMdongtianfudi,KaiPanshare,QQZYDAPP,rjyxfx,PikPak_Share_Channel,btzhi,newproductsourcing,cctv1211,duan_ju,QuarkFree,yunpanNB,kkdj001,xxzlzn,pxyunpanxunlei,jxwpzy,kuakedongman,liangxingzhinan,xiangnikanj,solidsexydoll,guoman4K,zdqxm,kduanju,cilidianying,CBduanju,SharePanFilms,dzsgx,BooksRealm,Oscar_4Kmovies,douerpan,baidu_yppan,Q_jilupian,Netdisk_Movies,yunpanquark,ammmziyuan,ciliziyuanku,cili8888,jzmm_123pan,gdsharing,dmhy_org,
+      - ENABLED_PLUGINS=labi,zhizhen,shandian,duoduo,muou,wanou,hunhepan,jikepan,panwiki,pansearch,panta,qupansou,hdr4k,pan666,susu,thepiratebay,xuexizhinan,panyq,ouge,huban,cyg,erxiao,miaoso,fox4k,pianku,clmao,wuji,cldi,xiaozhang,libvio,leijing,xb6v,xys,ddys,hdmoli,yuhuage,u3c3,clxiong,jutoushe,sdso,xiaoji,xdyh,haisou,bixin,djgou,nyaa,xinjuc,aikanzy,qupanshe,xdpan,discourse,yunsou,qqpd,ahhhhfs,nsgame,gying,quark4k,quarksoo,sousou,ash
+      - CACHE_ENABLED=true
+      - CACHE_PATH=/app/cache
+      - CACHE_MAX_SIZE=100
+      - CACHE_TTL=60
+      - ASYNC_PLUGIN_ENABLED=true
+      - ASYNC_RESPONSE_TIMEOUT=4
+      - ASYNC_MAX_BACKGROUND_WORKERS=20
+      - ASYNC_MAX_BACKGROUND_TASKS=100
+      - ASYNC_CACHE_TTL_HOURS=1
+      # Authentication (optional)
+      # - AUTH_ENABLED=true
+      # - AUTH_USERS=admin:admin123,user:pass456
+      # - AUTH_TOKEN_EXPIRY=24
+      # - AUTH_JWT_SECRET=your-secret-key-here
+      # Proxy (optional)
+      # - PROXY=socks5://proxy:7897
+      # 运行时环境变量 (服务端使用，不暴露给客户端)
+      # 单容器内 Next API 代理到同容器 Go 后端
+      - NEXT_PUBLIC_API_BASE=http://127.0.0.1:8888
+      # Cloudflare Turnstile Secret Key
+      - TURNSTILE_SECRET_KEY=
+      # hCaptcha Secret Key
+      - HCAPTCHA_SECRET_KEY=
+      # AI 推荐 - OpenAI 兼容接口地址，例如 https://api.openai.com/v1
+      - AI_SUGGEST_BASE_URL=
+      # AI 推荐 - 模型名称，例如 gpt-5
+      - AI_SUGGEST_MODEL=
+      # AI 推荐 - API Key
+      - AI_SUGGEST_API_KEY=
+      # AI 推荐 - 自定义提示词（可留空使用内置提示词）
+      - AI_SUGGEST_PROMPT=
+      # AI 排行榜后端总开关: true=启用排行榜页面/SEO入口/API定时生成/sitemap，false=整套排行榜功能停止，但不影响现有 AI 推荐和主页基础 SEO
+      - AI_RANKINGS_ENABLED=false
+      # AI 排行榜前端显示开关: true=导航栏显示“排行榜”入口，false=前端完全隐藏入口；通常建议和 AI_RANKINGS_ENABLED 保持一致
+      - NEXT_PUBLIC_AI_RANKINGS_ENABLED=false
+      # AI 排行榜接口地址（留空则复用 AI 推荐配置）
+      - AI_RANKINGS_BASE_URL=
+      # AI 排行榜模型（留空则复用 AI 推荐模型）
+      - AI_RANKINGS_MODEL=
+      # AI 排行榜 API Key（留空则复用 AI 推荐 Key）
+      - AI_RANKINGS_API_KEY=
+      # AI 排行榜每日执行时间，格式 HH:mm
+      - AI_RANKINGS_RUN_AT=03:00
+      # AI 排行榜时区
+      - AI_RANKINGS_TIMEZONE=Asia/Shanghai
+      # 容器启动后是否自动执行一次排行榜生成
+      - AI_RANKINGS_RUN_ON_STARTUP=false
+      # AI 排行榜最少条目数，最低会按 20 条处理
+      - AI_RANKINGS_MIN_ITEMS=20
+      # AI 排行榜数据落盘目录
+      - AI_RANKINGS_DATA_DIR=/app/data/rankings
+      # 后台管理员与榜单版本 SQLite 数据目录
+      - ADMIN_DATA_DIR=/app/data/admin
+      # 触发 /api/rankings/sync 的鉴权令牌，务必修改
+      - AI_RANKINGS_SYNC_TOKEN=change-this-token
+      # 年榜提示词：要求输出 JSON { items: [{ query, score }] }
+      - AI_RANKINGS_PROMPT_YEARLY=你是动漫年度预告榜研究员。只输出一个合法 JSON 对象，禁止 markdown、代码块、解释文字。输出格式必须严格为 {"items":[{"query":"中文动漫名","score":88.5}] }。请生成至少20个“当前年份内高热度、可信来源可验证”的预告动漫。优先日漫，其次中国大陆动画。优先参考 bilibili、Bangumi、AniList、MyAnimeList、Niconico、X/Twitter 等平台讨论热度。query 优先简体中文名，score 为 0-100 数值。
+      # 月榜提示词：要求输出 JSON { items: [{ query, score }] }
+      - AI_RANKINGS_PROMPT_MONTHLY=你是动漫当月新番榜研究员。只输出一个合法 JSON 对象，禁止 markdown、代码块、解释文字。输出格式必须严格为 {"items":[{"query":"中文动漫名","score":88.5}] }。请生成至少20个“与当前月份相关、在播或当月上新”的动漫。优先日漫，其次中国大陆动画。优先参考 bilibili、Bangumi、AniList、MyAnimeList、Niconico、X/Twitter 等平台信号。query 优先简体中文名，score 为 0-100 数值。
+      # 日榜提示词：要求输出 JSON { items: [{ query, score }] }
+      - AI_RANKINGS_PROMPT_DAILY=你是动漫当日热榜研究员。只输出一个合法 JSON 对象，禁止 markdown、代码块、解释文字。输出格式必须严格为 {"items":[{"query":"中文动漫名","score":88.5}] }。请生成至少20个“今日真正热门且已上映/在播/可观看”的动漫，禁止把纯未开播未来作品放入当日榜。优先日漫，其次中国大陆动画。优先参考 bilibili、Bangumi、AniList、MyAnimeList、Niconico、X/Twitter 等平台。query 优先简体中文名，score 为 0-100 数值。
+      # 违规词审查提示词：要求输出 JSON { blocked: [] }
+      - AI_RANKINGS_PROMPT_MODERATION=你是榜单安全审查器。只输出一个合法 JSON 对象，禁止 markdown、代码块、解释文字。输出格式必须严格为 {"blocked":["条目A"]} 或 {"blocked":[]}。请拦截涉黄、仇恨、极端、诈骗、违法、明显非动漫或低可信条目。
+      # 多语言翻译提示词：要求输出 JSON { items: [{ query, titles }] }
+      - AI_RANKINGS_PROMPT_TRANSLATE=你是动漫多语言翻译器。只输出一个合法 JSON 对象，禁止 markdown、代码块、解释文字。输出格式必须严格为 {"items":[{"query":"中文名","titles":{"zh-CN":"...","zh-TW":"...","en":"...","ja":"...","ru":"...","fr":"..."}}]}。要求：query 与 zh-CN 优先使用简体中文常用名，其他语言做自然准确翻译。
+      # 统一评分提示词：要求输出 JSON { items: [{ query, score }] }
+      - AI_RANKINGS_PROMPT_SCORE=你是动漫榜单统一评分器。只输出一个合法 JSON 对象，禁止 markdown、代码块、解释文字。输出格式必须严格为 {"items":[{"query":"中文名","score":85.2}]}。要求同名作品在年榜/月榜/日榜分数一致，score 为 0-100 数值。
+      # 榜单校验提示词：用于过滤错误条目并保证日榜为已上映/在播内容
+      - AI_RANKINGS_PROMPT_VERIFY=你是动漫榜单质量审核器。必须只输出一个合法 JSON 对象，不要输出 markdown、代码块、解释文字。输出格式必须严格为 {"items":[{"query":"中文动漫名","score":88.5}],"removed":["被移除条目"]}。审核规则：1) 只保留真实存在的动漫作品；2) 删除非动漫、重复、低置信度、歧义严重条目；3) daily 当日热榜必须只保留已上映/在播/当前可观看作品，删除纯未来未开播作品；4) monthly 当月新番优先当月相关上新与在播新番；5) yearly 年度预告允许未上映，但必须是当年高关注且信息可信；6) query 优先简体中文名称；7) score 必须为 0-100 数值；8) 若删除后不足，不要编造，保留高置信条目并写入 removed。
+    volumes:
+      - limitless-search:/app/cache
+      - limitless-search-web-data:/app/data
+    networks:
+      limitless-network:
+        aliases:
+          - backend
+          - web
+          - limitless-search
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8888/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  limitless-search:
+    name: limitless-search
+  limitless-search-web-data:
+    name: limitless-search-web-data
+
+networks:
+  limitless-network:
+    name: limitless-network
