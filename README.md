@@ -1,4 +1,4 @@
-# 无线搜索
+# 无线搜索 开发中暂时不能使用 
 
 **简体中文** | [繁體中文](README_zh-TW.md) | [English](README_en.md) | [日本語](README_ja.md) | [Русский](README_ru.md) | [Français](README_fr.md)
 
