@@ -1,5 +1,8 @@
 import "server-only";
 
-import { getAdminUserCount } from "@/lib/admin-auth";
+import { getInstallState } from "@/lib/app-settings";
 
-export const isInstalled = async () => (await getAdminUserCount()) > 0;
+export const isInstalled = async () => {
+  const state = await getInstallState();
+  return state.installed;
+};

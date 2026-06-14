@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { type Language, languages } from "@/lib/i18n";
 
@@ -20,6 +20,7 @@ type InstallCopy = {
   environmentTitle: string;
   environmentItems: Array<{ label: string; detail: string }>;
   adminTitle: string;
+  adminPath: string;
   email: string;
   password: string;
   repeatPassword: string;
@@ -34,6 +35,7 @@ type InstallCopy = {
     failed: string;
   };
   locked: string;
+  licenseText: string[];
 };
 
 const copies: Record<Language, InstallCopy> = {
@@ -53,6 +55,7 @@ const copies: Record<Language, InstallCopy> = {
       { label: "Docker 双服务", detail: "前端与 Go 后端保持双服务结构。" },
     ],
     adminTitle: "管理员账号",
+    adminPath: "管理员后台地址，例如 /manage",
     email: "管理员邮箱",
     password: "密码",
     repeatPassword: "重复密码",
@@ -67,6 +70,12 @@ const copies: Record<Language, InstallCopy> = {
       failed: "安装失败，请稍后重试。",
     },
     locked: "安装完成后此页面将被锁定，不能再次打开。",
+    licenseText: [
+      "Limitless Search 2.0 版本后采用 BYCC4，版权归 Maishan Inc. 所有。",
+      "你可以在许可证允许的范围内分享和改编本项目，但必须保留署名并遵守许可证要求。",
+      "安装程序会为当前部署创建第一个管理员账号。请妥善保存管理员密码。",
+      "安装完成后，安装页面会因为安装状态已写入而锁定，不能再次打开。",
+    ],
   },
   "zh-TW": {
     badge: "安裝精靈",
@@ -84,6 +93,7 @@ const copies: Record<Language, InstallCopy> = {
       { label: "Docker 雙服務", detail: "前端與 Go 後端保留雙服務結構。" },
     ],
     adminTitle: "管理員帳號",
+    adminPath: "管理員後台地址，例如 /manage",
     email: "管理員信箱",
     password: "密碼",
     repeatPassword: "重複密碼",
@@ -98,6 +108,12 @@ const copies: Record<Language, InstallCopy> = {
       failed: "安裝失敗，請稍後重試。",
     },
     locked: "安裝完成後此頁面會被鎖定，不能再次開啟。",
+    licenseText: [
+      "Limitless Search 2.0 版本後採用 BYCC4，版權歸 Maishan Inc. 所有。",
+      "你可以在授權允許的範圍內分享和改作本專案，但必須保留署名並遵守授權要求。",
+      "安裝程式會為目前部署建立第一個管理員帳號。請妥善保存管理員密碼。",
+      "安裝完成後，安裝頁會因安裝狀態已寫入而鎖定，不能再次開啟。",
+    ],
   },
   en: {
     badge: "Install Wizard",
@@ -115,6 +131,7 @@ const copies: Record<Language, InstallCopy> = {
       { label: "Docker dual service", detail: "The frontend and Go backend remain separate services." },
     ],
     adminTitle: "Admin Account",
+    adminPath: "Admin backend path, for example /manage",
     email: "Admin email",
     password: "Password",
     repeatPassword: "Repeat password",
@@ -129,6 +146,12 @@ const copies: Record<Language, InstallCopy> = {
       failed: "Installation failed. Try again later.",
     },
     locked: "After installation this page is locked and cannot be opened again.",
+    licenseText: [
+      "Limitless Search 2.0 is distributed under BYCC4. Copyright belongs to Maishan Inc.",
+      "You may share and adapt the project under the license terms. Keep attribution and follow the license requirements.",
+      "This installer creates the first administrator account for this deployment. Keep the administrator password private.",
+      "After installation, this page is locked because installation state has been written and cannot be opened again.",
+    ],
   },
   ja: {
     badge: "インストール",
@@ -146,6 +169,7 @@ const copies: Record<Language, InstallCopy> = {
       { label: "Docker 二重サービス", detail: "フロントエンドと Go バックエンドは分離されています。" },
     ],
     adminTitle: "管理者アカウント",
+    adminPath: "管理画面パス、例 /manage",
     email: "管理者メール",
     password: "パスワード",
     repeatPassword: "パスワード再入力",
@@ -160,6 +184,12 @@ const copies: Record<Language, InstallCopy> = {
       failed: "インストールに失敗しました。",
     },
     locked: "インストール後、このページは開けなくなります。",
+    licenseText: [
+      "Limitless Search 2.0 は BYCC4 の下で提供され、著作権は Maishan Inc. に帰属します。",
+      "ライセンス条件の範囲内で共有・改変できます。表示とライセンス要件を守ってください。",
+      "このインストーラーは現在のデプロイ用に最初の管理者アカウントを作成します。管理者パスワードは安全に保管してください。",
+      "インストール後は状態が書き込まれるため、このページはロックされ再度開けません。",
+    ],
   },
   ru: {
     badge: "Установка",
@@ -177,6 +207,7 @@ const copies: Record<Language, InstallCopy> = {
       { label: "Docker dual service", detail: "Frontend и Go backend остаются отдельными сервисами." },
     ],
     adminTitle: "Учетная запись администратора",
+    adminPath: "Путь панели администратора, например /manage",
     email: "Email администратора",
     password: "Пароль",
     repeatPassword: "Повторите пароль",
@@ -191,6 +222,12 @@ const copies: Record<Language, InstallCopy> = {
       failed: "Установка не удалась.",
     },
     locked: "После установки эта страница будет заблокирована.",
+    licenseText: [
+      "Limitless Search 2.0 распространяется под BYCC4. Авторские права принадлежат Maishan Inc.",
+      "Вы можете делиться проектом и изменять его в рамках лицензии. Сохраняйте указание авторства и соблюдайте требования лицензии.",
+      "Установщик создает первую учетную запись администратора для этого развертывания. Храните пароль администратора в безопасности.",
+      "После установки состояние будет записано, и эта страница будет заблокирована.",
+    ],
   },
   fr: {
     badge: "Installation",
@@ -208,6 +245,7 @@ const copies: Record<Language, InstallCopy> = {
       { label: "Double service Docker", detail: "Le frontend et le backend Go restent séparés." },
     ],
     adminTitle: "Compte administrateur",
+    adminPath: "Chemin d’administration, par exemple /manage",
     email: "Email administrateur",
     password: "Mot de passe",
     repeatPassword: "Répéter le mot de passe",
@@ -222,20 +260,20 @@ const copies: Record<Language, InstallCopy> = {
       failed: "L’installation a échoué.",
     },
     locked: "Après installation, cette page sera verrouillée.",
+    licenseText: [
+      "Limitless Search 2.0 est distribué sous BYCC4. Les droits d’auteur appartiennent à Maishan Inc.",
+      "Vous pouvez partager et adapter le projet selon les termes de la licence. Conservez l’attribution et respectez les exigences de la licence.",
+      "Cet installateur crée le premier compte administrateur pour ce déploiement. Gardez le mot de passe administrateur confidentiel.",
+      "Après l’installation, l’état est enregistré et cette page est verrouillée.",
+    ],
   },
 };
-
-const licenseText = [
-  "Limitless Search 2.0 is distributed under BYCC4. Copyright belongs to Maishan Inc.",
-  "You may share and adapt the work under the terms of the license. Keep attribution and follow the license requirements.",
-  "This installer creates the first administrator account for the current deployment. Keep the administrator password private.",
-  "After installation, this page is locked by the presence of the administrator account and cannot be opened again.",
-].join("\n\n");
 
 export function InstallWizard({ initialLanguage }: InstallWizardProps) {
   const [language, setLanguage] = useState<Language>(initialLanguage);
   const [licenseScrolled, setLicenseScrolled] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [adminPath, setAdminPath] = useState("/manage");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -245,11 +283,6 @@ export function InstallWizard({ initialLanguage }: InstallWizardProps) {
 
   const copy = copies[language];
   const activeStep = accepted ? 2 : licenseScrolled ? 1 : 0;
-
-  const languageLabel = useMemo(
-    () => languages.find((entry) => entry.code === language)?.name || "Language",
-    [language],
-  );
 
   useEffect(() => {
     const element = licenseRef.current;
@@ -300,14 +333,16 @@ export function InstallWizard({ initialLanguage }: InstallWizardProps) {
           email: email.trim(),
           password,
           confirmPassword,
+          adminPath,
+          licenseAccepted: accepted,
         }),
       });
-      const json = (await response.json().catch(() => ({}))) as { message?: string };
+      const json = (await response.json().catch(() => ({}))) as { message?: string; adminPath?: string };
       if (!response.ok) {
         setError(json.message || copy.errors.failed);
         return;
       }
-      window.location.href = "/admin/dashboard";
+      window.location.href = `${json.adminPath || adminPath}/dashboard`;
     } catch (installError) {
       setError(installError instanceof Error ? installError.message : copy.errors.failed);
     } finally {
@@ -383,7 +418,7 @@ export function InstallWizard({ initialLanguage }: InstallWizardProps) {
                   ref={licenseRef}
                   className="mt-4 h-44 overflow-y-auto rounded-[8px] border border-neutral-200 bg-neutral-50 p-4 text-sm leading-7 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
                 >
-                  {licenseText.split("\n").map((line, index) => (
+                  {copy.licenseText.flatMap((line) => [line, ""]).map((line, index) => (
                     <p key={`${line}-${index}`} className="mb-4 last:mb-0">
                       {line || "\u00a0"}
                     </p>
@@ -420,6 +455,12 @@ export function InstallWizard({ initialLanguage }: InstallWizardProps) {
               <section>
                 <h2 className="text-xl font-black">{copy.adminTitle}</h2>
                 <div className="mt-4 grid gap-4">
+                  <input
+                    value={adminPath}
+                    onChange={(event) => setAdminPath(event.target.value)}
+                    placeholder={copy.adminPath}
+                    className="w-full rounded-[8px] border border-neutral-200 bg-white px-4 py-3 text-sm outline-none focus:border-neutral-500 dark:border-neutral-800 dark:bg-neutral-900"
+                  />
                   <input
                     type="email"
                     value={email}
