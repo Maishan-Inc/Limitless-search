@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { Moon, Sun, Languages, Menu, X, ChevronDown, Check, Github } from "lucide-react"
 import { useTheme } from "next-themes"
 import { motion, AnimatePresence } from "framer-motion"
@@ -37,7 +38,7 @@ export function Navbar({ showRankings = false }: NavbarProps) {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8">
-          {showRankings && <a href="/rankings" className="text-sm font-medium hover:text-neutral-500 transition-colors">排行榜</a>}
+          {showRankings && <Link href="/rankings" className="text-sm font-medium hover:text-neutral-500 transition-colors">排行榜</Link>}
           <a href="#" className="text-sm font-medium hover:text-neutral-500 transition-colors">{t.nav.community}</a>
           <a href="#download" className="text-sm font-medium hover:text-neutral-500 transition-colors">{t.nav.download}</a>
           <a href="#about" className="text-sm font-medium hover:text-neutral-500 transition-colors">{t.nav.about}</a>
@@ -119,7 +120,7 @@ export function Navbar({ showRankings = false }: NavbarProps) {
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-16 left-0 right-0 bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-800 md:hidden p-4 flex flex-col gap-4 shadow-2xl"
           >
-            {showRankings && <a href="/rankings" className="text-lg font-medium" onClick={toggleMenu}>排行榜</a>}
+            {showRankings && <Link href="/rankings" className="text-lg font-medium" onClick={toggleMenu}>排行榜</Link>}
             <a href="#" className="text-lg font-medium" onClick={toggleMenu}>{t.nav.community}</a>
             <a href="#download" className="text-lg font-medium" onClick={toggleMenu}>{t.nav.download}</a>
             <a href="#about" className="text-lg font-medium" onClick={toggleMenu}>{t.nav.about}</a>

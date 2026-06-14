@@ -1,12 +1,62 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const { Pool } = require("pg");
+
 const port = process.env.PORT || "3200";
-const enabled = (process.env.AI_RANKINGS_ENABLED || "false").toLowerCase() === "true";
-const runAt = process.env.AI_RANKINGS_RUN_AT || "03:00";
-const timeZone = process.env.AI_RANKINGS_TIMEZONE || "Asia/Shanghai";
-const runOnStartup = (process.env.AI_RANKINGS_RUN_ON_STARTUP || "false").toLowerCase() === "true";
-const token = process.env.AI_RANKINGS_SYNC_TOKEN || "";
+const databaseUrl = process.env.DATABASE_URL || "";
+const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 let lastRunKey = "";
 
-const currentClock = () => {
+const parseSettingValue = (value) => {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+};
+
+const getSettingMap = async () => {
+  if (!pool) return new Map();
+
+  const result = await pool.query(
+    "SELECT key, value_json FROM app_settings WHERE key = ANY($1)",
+    [[
+      "rankings.enabled",
+      "rankings.run_at",
+      "rankings.timezone",
+      "rankings.run_on_startup",
+      "rankings.sync_token",
+    ]],
+  );
+
+  return new Map(result.rows.map((row) => [row.key, parseSettingValue(row.value_json)]));
+};
+
+const getRankingSchedulerConfig = async () => {
+  try {
+    const settings = await getSettingMap();
+    return {
+      enabled: settings.get("rankings.enabled") === true,
+      runAt: String(settings.get("rankings.run_at") || "03:00"),
+      timeZone: String(settings.get("rankings.timezone") || "Asia/Shanghai"),
+      runOnStartup: settings.get("rankings.run_on_startup") === true,
+      token: String(settings.get("rankings.sync_token") || ""),
+    };
+  } catch (error) {
+    console.warn("[rankings] scheduler settings unavailable", error);
+    return {
+      enabled: false,
+      runAt: "03:00",
+      timeZone: "Asia/Shanghai",
+      runOnStartup: false,
+      token: "",
+    };
+  }
+};
+
+const currentClock = (timeZone) => {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -24,9 +74,9 @@ const currentClock = () => {
   };
 };
 
-const triggerSync = async (reason) => {
+const triggerSync = async (reason, token) => {
   if (!token) {
-    console.warn("[rankings] skipped sync: AI_RANKINGS_SYNC_TOKEN missing");
+    console.warn("[rankings] skipped sync: rankings.sync_token missing");
     return;
   }
 
@@ -52,20 +102,24 @@ const triggerSync = async (reason) => {
 
 require("./server.js");
 
-if (enabled) {
-  if (runOnStartup) {
-    setTimeout(() => {
-      triggerSync("startup");
-    }, 15000);
+setTimeout(async () => {
+  const config = await getRankingSchedulerConfig();
+  if (config.enabled && config.runOnStartup) {
+    await triggerSync("startup", config.token);
+  }
+}, 15000);
+
+setInterval(async () => {
+  const config = await getRankingSchedulerConfig();
+  if (!config.enabled) {
+    return;
   }
 
-  setInterval(() => {
-    const { dateKey, timeKey } = currentClock();
-    if (timeKey !== runAt || lastRunKey === dateKey) {
-      return;
-    }
+  const { dateKey, timeKey } = currentClock(config.timeZone);
+  if (timeKey !== config.runAt || lastRunKey === dateKey) {
+    return;
+  }
 
-    lastRunKey = dateKey;
-    triggerSync("schedule");
-  }, 30000);
-}
+  lastRunKey = dateKey;
+  await triggerSync("schedule", config.token);
+}, 30000);

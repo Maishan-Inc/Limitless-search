@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { NextRequest } from "next/server";
+import { getSettingValue, settingDefinitions } from "@/lib/app-settings";
 
 export type CaptchaProvider = "turnstile" | "hcaptcha" | "none";
 
@@ -10,16 +11,16 @@ export type CaptchaConfig = {
   siteKeyPresent: boolean;
 };
 
-export const getCaptchaConfig = (): CaptchaConfig => {
-  const rawProvider = (process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER || "none").toLowerCase();
+export const getCaptchaConfig = async (): Promise<CaptchaConfig> => {
+  const rawProvider = String(await getSettingValue(settingDefinitions.captchaProvider)).toLowerCase();
   const provider: CaptchaProvider =
     rawProvider === "turnstile" || rawProvider === "hcaptcha" ? rawProvider : "none";
 
   const siteKey =
     provider === "turnstile"
-      ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""
+      ? String(await getSettingValue(settingDefinitions.turnstileSiteKey) || "")
       : provider === "hcaptcha"
-        ? process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY || ""
+        ? String(await getSettingValue(settingDefinitions.hcaptchaSiteKey) || "")
         : "";
 
   return {
@@ -33,7 +34,7 @@ export const verifyCaptchaToken = async (
   request: NextRequest,
   token?: string | null,
 ) => {
-  const config = getCaptchaConfig();
+  const config = await getCaptchaConfig();
   if (config.provider === "none") {
     return { ok: true as const };
   }
@@ -49,8 +50,8 @@ export const verifyCaptchaToken = async (
 
   const secret =
     config.provider === "turnstile"
-      ? process.env.TURNSTILE_SECRET_KEY
-      : process.env.HCAPTCHA_SECRET_KEY;
+      ? String(await getSettingValue(settingDefinitions.turnstileSecretKey) || "")
+      : String(await getSettingValue(settingDefinitions.hcaptchaSecretKey) || "");
 
   if (!secret) {
     return { ok: false as const, message: "Captcha secret not configured" };

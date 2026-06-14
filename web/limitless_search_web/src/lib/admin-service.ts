@@ -2,23 +2,24 @@ import "server-only";
 
 import type { AdminBootstrapState, AdminDashboardPreview } from "@/lib/admin-preview";
 import { getAdminDashboardPreview } from "@/lib/admin-preview";
-import { getCurrentAdminUser, getAdminUserCount } from "@/lib/admin-auth";
+import { getCurrentAdminUser } from "@/lib/admin-auth";
 import { getAdminRankingWorkspaceData } from "@/lib/admin-rankings";
 import { getCaptchaConfig } from "@/lib/captcha";
+import { getInstallState } from "@/lib/app-settings";
 
 export const getAdminBootstrapData = async (): Promise<AdminBootstrapState> => {
-  const config = getCaptchaConfig();
-  const adminUserCount = await getAdminUserCount();
+  const config = await getCaptchaConfig();
+  const installState = await getInstallState();
 
   const helperText =
     config.provider === "none"
       ? "Captcha is disabled. Login and setup can submit directly."
       : config.siteKeyPresent
         ? `The login page uses ${config.provider}. Verification must pass before continuing.`
-        : `${config.provider} is enabled but the site key is missing. Update docker-compose.yml before using admin auth.`;
+        : `${config.provider} is enabled but the site key is missing. Update it in the admin configuration center.`;
 
   return {
-    setupRequired: adminUserCount === 0,
+    setupRequired: installState.setupRequired,
     captchaProvider: config.provider,
     siteKeyPresent: config.siteKeyPresent,
     siteKey: config.siteKey,

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import HomeClient from "@/components/home-client";
 import { LanguageInitializer } from "@/components/language-initializer";
+import { getSettingValue, settingDefinitions } from "@/lib/app-settings";
 import { detectPreferredLanguage, languageToLocale, normalizeLanguage } from "@/lib/i18n";
 import { readRankingDataset } from "@/lib/rankings";
 import { rankingsEnabled, rankingsNavEnabled } from "@/lib/rankings-config";
@@ -143,13 +144,23 @@ export default async function Page({
   const initialLanguage = params?.lang
     ? normalizeLanguage(params.lang)
     : detectPreferredLanguage(requestHeaders.get("accept-language"));
-  const rankingDataset = rankingsEnabled() ? await readRankingDataset() : null;
-  const showRankings = rankingsNavEnabled();
+  const rankingDataset = (await rankingsEnabled()) ? await readRankingDataset() : null;
+  const showRankings = await rankingsNavEnabled();
+  const captchaProvider = String(await getSettingValue(settingDefinitions.captchaProvider) || "none");
+  const runtimeConfig = {
+    captchaProvider:
+      captchaProvider === "turnstile" || captchaProvider === "hcaptcha" ? captchaProvider : "none",
+    turnstileSiteKey: String(await getSettingValue(settingDefinitions.turnstileSiteKey) || ""),
+    hcaptchaSiteKey: String(await getSettingValue(settingDefinitions.hcaptchaSiteKey) || ""),
+    aiEnabled: Boolean(await getSettingValue(settingDefinitions.aiSuggestEnabled)),
+    aiThreshold: Number(await getSettingValue(settingDefinitions.aiSuggestThreshold) || 50),
+    aiRequireCaptcha: Boolean(await getSettingValue(settingDefinitions.aiSuggestRequireCaptcha)),
+  } as const;
 
   return (
     <>
       <LanguageInitializer initialLanguage={initialLanguage} />
-      <HomeClient initialLanguage={initialLanguage} showRankings={showRankings} />
+      <HomeClient showRankings={showRankings} runtimeConfig={runtimeConfig} />
       {rankingDataset && params?.q ? (
         <script
           type="application/ld+json"

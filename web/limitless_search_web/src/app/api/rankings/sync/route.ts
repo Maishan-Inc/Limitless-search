@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { importGeneratedRankingDataset, restorePublishedRankingDataset } from "@/lib/admin-rankings";
+import { getSettingValue, settingDefinitions } from "@/lib/app-settings";
 import { generateAndStoreRankings } from "@/lib/rankings";
 import { rankingsEnabled } from "@/lib/rankings-config";
 
 export const dynamic = "force-dynamic";
 
-const isAuthorized = (request: NextRequest) => {
-  const expected = process.env.AI_RANKINGS_SYNC_TOKEN || "";
+const isAuthorized = async (request: NextRequest) => {
+  const expected = String(await getSettingValue(settingDefinitions.rankingsSyncToken) || "");
   if (!expected) return false;
 
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
@@ -15,11 +16,11 @@ const isAuthorized = (request: NextRequest) => {
 };
 
 export async function POST(request: NextRequest) {
-  if (!rankingsEnabled()) {
+  if (!(await rankingsEnabled())) {
     return NextResponse.json({ message: "Rankings feature disabled" }, { status: 404 });
   }
 
-  if (!isAuthorized(request)) {
+  if (!(await isAuthorized(request))) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 

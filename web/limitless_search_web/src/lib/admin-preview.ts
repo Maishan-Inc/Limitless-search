@@ -76,41 +76,13 @@ export type AdminRankingWorkspace = {
   versions: AdminRankingVersion[];
 };
 
-const resolveCaptchaProvider = (): CaptchaProvider => {
-  const provider = (process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER || "none").toLowerCase();
-  if (provider === "turnstile" || provider === "hcaptcha") {
-    return provider;
-  }
-  return "none";
-};
-
 export const getAdminBootstrapPreview = (): AdminBootstrapState => {
-  const captchaProvider = resolveCaptchaProvider();
-  const siteKeyPresent =
-    captchaProvider === "turnstile"
-      ? Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)
-      : captchaProvider === "hcaptcha"
-        ? Boolean(process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY)
-        : true;
-
-  const helperText =
-    captchaProvider === "none"
-      ? "Captcha is disabled. Login and first-time setup can submit directly."
-      : siteKeyPresent
-        ? `The login page uses ${captchaProvider}. Users must pass verification before continuing.`
-        : `${captchaProvider} is enabled but the site key is missing. Update docker-compose.yml before using admin auth.`;
-
   return {
     setupRequired: true,
-    captchaProvider,
-    siteKeyPresent,
-    siteKey:
-      captchaProvider === "turnstile"
-        ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""
-        : captchaProvider === "hcaptcha"
-          ? process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY || ""
-          : "",
-    helperText,
+    captchaProvider: "none",
+    siteKeyPresent: true,
+    siteKey: "",
+    helperText: "Captcha is managed from PostgreSQL settings after installation.",
   };
 };
 
@@ -133,8 +105,8 @@ export const getAdminDashboardPreview = (): AdminDashboardPreview => ({
     },
     {
       label: "Admin State",
-      value: "SQLite Connected",
-      hint: "Admin auth, sessions, drafts, and published ranking versions persist in SQLite.",
+      value: "PostgreSQL Connected",
+      hint: "Admin auth, sessions, drafts, and published ranking versions persist in PostgreSQL.",
     },
   ],
   activities: [

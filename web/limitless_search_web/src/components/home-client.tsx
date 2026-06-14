@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { Search, ExternalLink, Lock, AlertCircle, Loader2, Clock, FileText, CheckCircle2, Filter, HardDrive, Magnet, Link as LinkIcon, X, ChevronLeft, ChevronRight, ChevronDown, Github } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "next/navigation";
@@ -9,7 +9,7 @@ import { Navbar } from "@/components/navbar";
 import { Hero } from "@/components/hero";
 import { About } from "@/components/about";
 import { Footer } from "@/components/footer";
-import { type Language, useLanguage } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n";
 
 declare global {
   interface Window {
@@ -216,20 +216,26 @@ type AiSuggestion = {
 };
 
 type HomeClientProps = {
-  initialLanguage: Language;
   showRankings?: boolean;
+  runtimeConfig?: {
+    captchaProvider: CaptchaProvider;
+    turnstileSiteKey: string;
+    hcaptchaSiteKey: string;
+    aiEnabled: boolean;
+    aiThreshold: number;
+    aiRequireCaptcha: boolean;
+  };
 };
 
-export default function HomeClient({ initialLanguage, showRankings = false }: HomeClientProps) {
+export default function HomeClient({ showRankings = false, runtimeConfig }: HomeClientProps) {
   const searchParams = useSearchParams();
   const { t, language } = useLanguage();
   
-  const CAPTCHA_PROVIDER = (process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER || "none").toLowerCase() as CaptchaProvider;
-  const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
-  const HCAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY || "";
-  const AI_ENABLED = (process.env.NEXT_PUBLIC_AI_SUGGEST_ENABLED ?? "true").toLowerCase() !== "false";
-  const AI_THRESHOLD = Number(process.env.NEXT_PUBLIC_AI_SUGGEST_THRESHOLD ?? 50) || 50;
-  const AI_REQUIRE_CAPTCHA = (process.env.NEXT_PUBLIC_AI_SUGGEST_REQUIRE_CAPTCHA ?? "false").toLowerCase() === "true";
+  const CAPTCHA_PROVIDER = runtimeConfig?.captchaProvider || "none";
+  const TURNSTILE_SITE_KEY = runtimeConfig?.turnstileSiteKey || "";
+  const HCAPTCHA_SITE_KEY = runtimeConfig?.hcaptchaSiteKey || "";
+  const AI_ENABLED = runtimeConfig?.aiEnabled ?? true;
+  const AI_REQUIRE_CAPTCHA = runtimeConfig?.aiRequireCaptcha || false;
   
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -248,8 +254,6 @@ export default function HomeClient({ initialLanguage, showRankings = false }: Ho
   const captchaTokenRef = useRef<string | null>(null);
   const [errorModal, setErrorModal] = useState<ErrorModalState | null>(null);
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiToastProgress, setAiToastProgress] = useState(0);
   const [aiToastCollapsed, setAiToastCollapsed] = useState(false);
@@ -314,7 +318,6 @@ export default function HomeClient({ initialLanguage, showRankings = false }: Ho
     }
 
     // 重置 AI 状态
-    setAiError(null);
     setAiSuggestion(null);
     setShowAiModal(false);
  
@@ -423,13 +426,10 @@ export default function HomeClient({ initialLanguage, showRankings = false }: Ho
     if (!AI_ENABLED) return;
     const activeToken = captchaTokenRef.current;
     if (AI_REQUIRE_CAPTCHA && !activeToken) {
-      setAiError(t.search.suggest.captchaRequired);
-      setShowAiModal(true);
+      setShowAiModal(false);
       return;
     }
 
-    setAiLoading(true);
-    setAiError(null);
     try {
       const resp = await fetch("/api/ai-suggest", {
         method: "POST",
@@ -460,9 +460,7 @@ export default function HomeClient({ initialLanguage, showRankings = false }: Ho
       }
     } catch (err) {
       setShowAiModal(false);
-      setAiError(err instanceof Error ? err.message : t.search.suggest.failed);
-    } finally {
-      setAiLoading(false);
+      console.error("Failed to request AI suggestion", err);
     }
   };
 

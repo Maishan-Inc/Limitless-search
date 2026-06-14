@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { AdminAuthPanel } from "@/components/admin/admin-auth-panel";
-import { getCurrentAdminUser } from "@/lib/admin-auth";
-import { getAdminBootstrapData } from "@/lib/admin-service";
+import { renderAdminPath } from "@/lib/admin-pages";
 
 export const metadata: Metadata = {
   title: "Admin Login",
@@ -10,12 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
-  const currentUser = await getCurrentAdminUser();
-  if (currentUser) {
-    redirect("/admin/dashboard");
-  }
-
-  const bootstrap = await getAdminBootstrapData();
-
-  return <AdminAuthPanel bootstrap={bootstrap} />;
+  return renderAdminPath("/admin", []);
 }

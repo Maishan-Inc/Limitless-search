@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { rankingsEnabled } from "@/lib/rankings-config";
+import { getSettingValue, settingDefinitions, type AppSettingDefinition } from "@/lib/app-settings";
 
 export type RankingLocale = "zh-CN" | "zh-TW" | "en" | "ja" | "ru" | "fr";
 export type RankingKey = "yearly" | "monthly" | "daily" | "bili_rank";
@@ -96,7 +96,7 @@ const uniqueByQuery = (items: RankingItem[]) => {
   return Array.from(map.values());
 };
 
-const getRuntimeDate = (date = new Date(), timeZone = process.env.AI_RANKINGS_TIMEZONE || "Asia/Shanghai") => {
+const getRuntimeDate = (date = new Date(), timeZone = "Asia/Shanghai") => {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -116,6 +116,12 @@ export const getRankingDataFile = () => {
   return path.join(baseDir, "latest.json");
 };
 
+export const getRankingDataFileAsync = async () => {
+  const configured = String(await getSettingValue(settingDefinitions.rankingsDataDir) || "");
+  const baseDir = configured || process.env.AI_RANKINGS_DATA_DIR || path.join(process.cwd(), "data", "rankings");
+  return path.join(baseDir, "latest.json");
+};
+
 export const getRankingLandingUrls = (dataset: RankingDataset) => {
   const items = uniqueByQuery(
     Object.values(dataset.rankings).flatMap((bucket) => bucket.items),
@@ -126,7 +132,7 @@ export const getRankingLandingUrls = (dataset: RankingDataset) => {
 
 export const readRankingDataset = async (): Promise<RankingDataset | null> => {
   try {
-    const content = await fs.readFile(getRankingDataFile(), "utf8");
+    const content = await fs.readFile(await getRankingDataFileAsync(), "utf8");
     return JSON.parse(content) as RankingDataset;
   } catch {
     return null;
@@ -186,7 +192,7 @@ export const ensureRankingDataset = async (): Promise<RankingDataset | null> => 
 };
 
 const writeRankingDataset = async (dataset: RankingDataset) => {
-  const filePath = getRankingDataFile();
+  const filePath = await getRankingDataFileAsync();
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, JSON.stringify(dataset, null, 2), "utf8");
 };
@@ -198,6 +204,17 @@ const safeJsonParse = (input: string) => {
     return null;
   }
 };
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const getPath = (value: unknown, pathParts: string[]): unknown =>
+  pathParts.reduce<unknown>((current, key) => {
+    if (Array.isArray(current)) {
+      return current[Number(key)];
+    }
+    return asRecord(current)[key];
+  }, value);
 
 const extractBalancedJson = (input: string) => {
   const start = input.indexOf("{");
@@ -267,11 +284,20 @@ const tryParseAiObject = (raw: string) => {
   return null;
 };
 
-const getAiConfig = () => ({
-  baseUrl: (process.env.AI_RANKINGS_BASE_URL || process.env.AI_SUGGEST_BASE_URL || "").replace(/\/$/, ""),
-  model: process.env.AI_RANKINGS_MODEL || process.env.AI_SUGGEST_MODEL || "",
-  apiKey: process.env.AI_RANKINGS_API_KEY || process.env.AI_SUGGEST_API_KEY || "",
-});
+const getAiConfig = async () => {
+  const rankingBase = String(await getSettingValue(settingDefinitions.rankingsBaseUrl) || "");
+  const rankingModel = String(await getSettingValue(settingDefinitions.rankingsModel) || "");
+  const rankingKey = String(await getSettingValue(settingDefinitions.rankingsApiKey) || "");
+  const suggestBase = String(await getSettingValue(settingDefinitions.aiSuggestBaseUrl) || "");
+  const suggestModel = String(await getSettingValue(settingDefinitions.aiSuggestModel) || "");
+  const suggestKey = String(await getSettingValue(settingDefinitions.aiSuggestApiKey) || "");
+
+  return {
+    baseUrl: (rankingBase || suggestBase).replace(/\/$/, ""),
+    model: rankingModel || suggestModel,
+    apiKey: rankingKey || suggestKey,
+  };
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -287,7 +313,7 @@ const logRankingsError = (stage: string, error: unknown, extra?: Record<string, 
 };
 
 const callAiJson = async <T>(systemPrompt: string, userPrompt: string): Promise<T> => {
-  const { baseUrl, model, apiKey } = getAiConfig();
+  const { baseUrl, model, apiKey } = await getAiConfig();
   if (!baseUrl || !model || !apiKey) {
     throw new Error("AI rankings configuration missing");
   }
@@ -328,8 +354,8 @@ const callAiJson = async <T>(systemPrompt: string, userPrompt: string): Promise<
         throw new Error(text || `AI rankings request failed on attempt ${attempt}`);
       }
 
-      const parsed = tryParseAiObject(text) as any;
-      const content = parsed?.choices?.[0]?.message?.content ?? parsed ?? text;
+      const parsed = tryParseAiObject(text);
+      const content = getPath(parsed, ["choices", "0", "message", "content"]) ?? parsed ?? text;
       const json =
         typeof content === "string"
           ? tryParseAiObject(content)
@@ -454,12 +480,25 @@ const withStrictContract = (purpose: string, prompt: string) =>
     prompt,
   ].join(" ");
 
-const getPrompt = (name: string, fallback: string, purpose: string) => {
-  const custom = process.env[name]?.trim();
+const getPrompt = async (
+  definition: AppSettingDefinition<string>,
+  envName: string,
+  fallback: string,
+  purpose: string,
+) => {
+  const settingValue = String(await getSettingValue(definition) || "").trim();
+  const custom = settingValue || process.env[envName]?.trim() || "";
   return withStrictContract(purpose, custom || fallback);
 };
 
 const targetItemCount = (minItems: number) => Math.max(20, minItems);
+
+const listPromptDefinition = (key: AiRankingKey) =>
+  key === "yearly"
+    ? { definition: settingDefinitions.promptYearly, envName: "AI_RANKINGS_PROMPT_YEARLY" }
+    : key === "monthly"
+      ? { definition: settingDefinitions.promptMonthly, envName: "AI_RANKINGS_PROMPT_MONTHLY" }
+      : { definition: settingDefinitions.promptDaily, envName: "AI_RANKINGS_PROMPT_DAILY" };
 
 const toBiliScore = (value: number, max: number) => {
   if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return 0;
@@ -489,7 +528,7 @@ const mapRankItem = (query: string, score: number, extra?: Partial<RankingItem>)
   ...extra,
 });
 
-const fetchBiliRankings = async (minItems: number) => {
+const fetchBiliRankings = async () => {
   const rankUrl = process.env.AI_RANKINGS_BILIBILI_RANK_URL || "https://api.bilibili.com/x/web-interface/ranking/v2?rid=13&type=all";
   const rankRegionFallbackUrl =
     process.env.AI_RANKINGS_BILIBILI_RANK_REGION_URL ||
@@ -524,8 +563,8 @@ const fetchBiliRankings = async (minItems: number) => {
     }),
   ]);
 
-  const rankJson = rankResp.ok ? ((await rankResp.json()) as any) : null;
-  const rankRegionJson = rankRegionResp.ok ? ((await rankRegionResp.json()) as any) : null;
+  const rankJson = rankResp.ok ? await rankResp.json() : null;
+  const rankRegionJson = rankRegionResp.ok ? await rankRegionResp.json() : null;
   const rankPageHtml = rankPageResp.ok ? await rankPageResp.text() : "";
 
   const parseTitlesFromHtml = (html: string, pattern: RegExp, limit = 200) => {
@@ -605,21 +644,21 @@ const fetchBiliRankings = async (minItems: number) => {
 
     const state = initialState ? safeJsonParse(initialState) : null;
     const list =
-      (state as any)?.rankData?.list ||
-      (state as any)?.rankList ||
-      (state as any)?.store?.rank?.list ||
+      getPath(state, ["rankData", "list"]) ||
+      getPath(state, ["rankList"]) ||
+      getPath(state, ["store", "rank", "list"]) ||
       [];
     return Array.isArray(list) ? list : [];
   };
 
   const rankItems = [
     ...extractTitleItems(
-      rankJson?.data?.list || rankJson?.data || [],
+      getPath(rankJson, ["data", "list"]) || getPath(rankJson, ["data"]) || [],
       (entry) => Number((entry.stat as { view?: unknown } | undefined)?.view || entry.play || 0),
       "https://www.bilibili.com/v/popular/rank/anime",
     ),
     ...extractTitleItems(
-      rankRegionJson?.data?.list || rankRegionJson?.data || [],
+      getPath(rankRegionJson, ["data", "list"]) || getPath(rankRegionJson, ["data"]) || [],
       (entry) => Number((entry.stat as { view?: unknown } | undefined)?.view || entry.play || 0),
       "https://www.bilibili.com/v/popular/rank/anime",
     ),
@@ -712,12 +751,10 @@ const fillRankingList = async (key: AiRankingKey, year: number, month: number, m
           ? `${month} monthly seasonal anime ranking`
           : "today anime hot ranking";
 
-    const refillPrompt = getPrompt(
-      key === "yearly"
-        ? "AI_RANKINGS_PROMPT_YEARLY"
-        : key === "monthly"
-          ? "AI_RANKINGS_PROMPT_MONTHLY"
-          : "AI_RANKINGS_PROMPT_DAILY",
+    const promptSource = listPromptDefinition(key);
+    const refillPrompt = await getPrompt(
+      promptSource.definition,
+      promptSource.envName,
       defaultListPrompt(label, limit, year, month),
       `ranking list refill for ${label}`,
     );
@@ -751,12 +788,10 @@ const generateRawList = async (key: AiRankingKey, year: number, month: number, m
         ? `${month} monthly seasonal anime ranking`
         : "today anime hot ranking";
 
-  const systemPrompt = getPrompt(
-    key === "yearly"
-      ? "AI_RANKINGS_PROMPT_YEARLY"
-      : key === "monthly"
-        ? "AI_RANKINGS_PROMPT_MONTHLY"
-        : "AI_RANKINGS_PROMPT_DAILY",
+  const promptSource = listPromptDefinition(key);
+  const systemPrompt = await getPrompt(
+    promptSource.definition,
+    promptSource.envName,
     defaultListPrompt(label, minItems, year, month),
     `ranking list generation for ${label}`,
   );
@@ -771,7 +806,8 @@ const verifyRankingList = async (
   year: number,
   month: number,
 ) => {
-  const systemPrompt = getPrompt(
+  const systemPrompt = await getPrompt(
+    settingDefinitions.promptVerify,
     "AI_RANKINGS_PROMPT_VERIFY",
     defaultVerifyPrompt,
     `ranking verification for ${key}`,
@@ -843,7 +879,8 @@ const replenishAfterModeration = async (
 };
 
 const moderateQueries = async (queries: string[]) => {
-  const systemPrompt = getPrompt(
+  const systemPrompt = await getPrompt(
+    settingDefinitions.promptModeration,
     "AI_RANKINGS_PROMPT_MODERATION",
     defaultModerationPrompt,
     "ranking moderation",
@@ -853,7 +890,8 @@ const moderateQueries = async (queries: string[]) => {
 };
 
 const unifyScores = async (queries: string[], scoreMap: Record<string, number>) => {
-  const systemPrompt = getPrompt(
+  const systemPrompt = await getPrompt(
+    settingDefinitions.promptScore,
     "AI_RANKINGS_PROMPT_SCORE",
     defaultScorePrompt,
     "ranking score normalization",
@@ -871,7 +909,8 @@ const unifyScores = async (queries: string[], scoreMap: Record<string, number>) 
 };
 
 const translateQueries = async (queries: string[]) => {
-  const systemPrompt = getPrompt(
+  const systemPrompt = await getPrompt(
+    settingDefinitions.promptTranslate,
     "AI_RANKINGS_PROMPT_TRANSLATE",
     defaultTranslationPrompt,
     "ranking title translation",
@@ -910,8 +949,9 @@ const sanitizeGeneratedItems = (items: AiGeneratedItem[], minItems: number) => {
 };
 
 export const generateRankings = async () => {
-  const minItems = targetItemCount(Number(process.env.AI_RANKINGS_MIN_ITEMS || 20));
-  const { year, month } = getRuntimeDate();
+  const minItems = targetItemCount(Number(await getSettingValue(settingDefinitions.rankingsMinItems) || 20));
+  const timeZone = String(await getSettingValue(settingDefinitions.rankingsTimezone) || "Asia/Shanghai");
+  const { year, month } = getRuntimeDate(new Date(), timeZone);
   const seedItems = Math.max(minItems * 2, minItems + 20);
 
   logRankings("pipeline", "generation started", { year, month, minItems });
@@ -946,7 +986,7 @@ export const generateRankings = async () => {
     };
 
     try {
-      biliData = await fetchBiliRankings(minItems);
+      biliData = await fetchBiliRankings();
     } catch (error) {
       logRankingsError("pipeline", error, {
         reason: "bilibili fetch failed; continue with AI rankings",
@@ -1080,7 +1120,7 @@ export const generateRankings = async () => {
     };
 
     try {
-      biliData = await fetchBiliRankings(minItems);
+      biliData = await fetchBiliRankings();
     } catch (biliError) {
       logRankingsError("pipeline", biliError, {
         reason: "bilibili fallback fetch failed",
