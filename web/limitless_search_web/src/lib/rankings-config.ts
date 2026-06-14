@@ -1,5 +1,7 @@
-export const rankingsEnabled = () =>
-  (process.env.AI_RANKINGS_ENABLED || process.env.NEXT_PUBLIC_AI_RANKINGS_ENABLED || "false").toLowerCase() === "true";
+import { getSettingValue, settingDefinitions } from "@/lib/app-settings";
 
-export const rankingsNavEnabled = () =>
-  (process.env.AI_RANKINGS_ENABLED || process.env.NEXT_PUBLIC_AI_RANKINGS_ENABLED || "false").toLowerCase() === "true";
+export const rankingsEnabled = async () =>
+  Boolean(await getSettingValue(settingDefinitions.rankingsEnabled));
+
+export const rankingsNavEnabled = async () =>
+  Boolean(await getSettingValue(settingDefinitions.rankingsNavEnabled));

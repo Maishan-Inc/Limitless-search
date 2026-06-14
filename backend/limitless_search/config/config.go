@@ -110,6 +110,7 @@ func Init() {
 	
 	// 应用GC配置
 	applyGCSettings()
+	applyDatabaseSettings()
 }
 
 // 从环境变量获取默认频道列表，如果未设置则使用默认值

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BarChart3, LayoutDashboard, Menu, Moon, Sparkles, Sun, X } from "lucide-react";
+import { BarChart3, LayoutDashboard, Menu, Moon, Settings, Sparkles, Sun, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { AdminLogoutButton } from "@/components/admin/admin-logout-button";
 
@@ -12,22 +12,24 @@ type AdminShellProps = {
   title: string;
   description: string;
   currentUserEmail?: string;
+  adminBasePath?: string;
   children: ReactNode;
 };
 
 const navItems = [
-  { href: "/admin/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/rankings", label: "AI Rankings", icon: BarChart3 },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/rankings", label: "AI Rankings", icon: BarChart3 },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function AdminShell({ title, description, currentUserEmail, children }: AdminShellProps) {
+export function AdminShell({ title, description, currentUserEmail, adminBasePath = "/admin", children }: AdminShellProps) {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
 
   const sidebar = (
     <div className="flex h-full flex-col rounded-[28px] border border-neutral-200/80 bg-white/88 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-950/84">
-      <Link href="/admin/dashboard" className="flex items-center gap-3 rounded-2xl px-3 py-3 text-neutral-900 dark:text-white">
+      <Link href={`${adminBasePath}/dashboard`} className="flex items-center gap-3 rounded-2xl px-3 py-3 text-neutral-900 dark:text-white">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white dark:bg-white dark:text-black">
           <Sparkles className="h-5 w-5" />
         </div>
@@ -41,11 +43,12 @@ export function AdminShell({ title, description, currentUserEmail, children }: A
       <nav className="mt-3 space-y-2">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href;
+          const href = `${adminBasePath}${item.href}`;
+          const active = pathname === href;
           return (
             <Link
-              key={item.href}
-              href={item.href}
+              key={href}
+              href={href}
               className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
                 active
                   ? "bg-black text-white dark:bg-white dark:text-black"
@@ -63,7 +66,7 @@ export function AdminShell({ title, description, currentUserEmail, children }: A
       <div className="mt-auto rounded-[24px] border border-neutral-200 bg-neutral-50/80 p-4 dark:border-neutral-800 dark:bg-neutral-900/60">
         <div className="text-sm font-semibold">Current Stage</div>
         <p className="mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
-          Draft editing, manual creation, cloning, publishing, and admin route protection now run through SQLite-backed admin APIs.
+          Draft editing, manual creation, cloning, publishing, and configuration now run through PostgreSQL-backed admin APIs.
         </p>
       </div>
     </div>

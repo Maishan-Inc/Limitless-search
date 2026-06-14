@@ -19,6 +19,7 @@ declare global {
 
 type AdminAuthPanelProps = {
   bootstrap: AdminBootstrapState;
+  adminBasePath?: string;
 };
 
 type AuthMode = "setup" | "login";
@@ -50,7 +51,7 @@ const loadCaptchaScript = (provider: AdminBootstrapState["captchaProvider"]) =>
     document.body.appendChild(script);
   });
 
-export function AdminAuthPanel({ bootstrap }: AdminAuthPanelProps) {
+export function AdminAuthPanel({ bootstrap, adminBasePath = "/admin" }: AdminAuthPanelProps) {
   const initialMode: AuthMode = bootstrap.setupRequired ? "setup" : "login";
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
@@ -212,7 +213,7 @@ export function AdminAuthPanel({ bootstrap }: AdminAuthPanelProps) {
         return;
       }
 
-      window.location.href = "/admin/dashboard";
+      window.location.href = `${adminBasePath}/dashboard`;
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Request failed.");
     } finally {

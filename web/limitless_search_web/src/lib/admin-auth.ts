@@ -58,13 +58,13 @@ export const createAdminUser = async (email: string, password: string) => {
   const normalized = normalizeEmail(email);
   const timestamp = nowIso();
 
-  return mutate((db) => {
-    const existing = queryScalar(db, "SELECT COUNT(*) AS count FROM admin_users");
+  return mutate(async (db) => {
+    const existing = await queryScalar(db, "SELECT COUNT(*) AS count FROM admin_users");
     if (toNumber(existing) > 0) {
       throw new Error("Admin user already initialized");
     }
 
-    runStatement(
+    await runStatement(
       db,
       `
       INSERT INTO admin_users (email, password_hash, created_at, updated_at, last_login_at)
@@ -73,7 +73,7 @@ export const createAdminUser = async (email: string, password: string) => {
       [normalized, hashPassword(password), timestamp, timestamp],
     );
 
-    const row = queryFirstRow(db, "SELECT * FROM admin_users WHERE email = ?", [normalized]);
+    const row = await queryFirstRow(db, "SELECT * FROM admin_users WHERE email = ?", [normalized]);
     if (!row) {
       throw new Error("Failed to create admin user");
     }
@@ -90,8 +90,8 @@ export const createAdminSession = async (
   const createdAt = nowIso();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
 
-  await mutate((db) => {
-    runStatement(
+  await mutate(async (db) => {
+    await runStatement(
       db,
       `
       INSERT INTO admin_sessions (user_id, session_token_hash, expires_at, created_at, last_seen_at, ip, user_agent)
@@ -100,7 +100,7 @@ export const createAdminSession = async (
       [userId, tokenHash, expiresAt, createdAt, createdAt, options.ip || null, options.userAgent || null],
     );
 
-    runStatement(
+    await runStatement(
       db,
       "UPDATE admin_users SET last_login_at = ?, updated_at = ? WHERE id = ?",
       [createdAt, createdAt, userId],
@@ -134,8 +134,8 @@ export const authenticateAdmin = async (
 
 export const deleteAdminSession = async (token: string) => {
   const tokenHash = hashSessionToken(token);
-  await mutate((db) => {
-    runStatement(db, "DELETE FROM admin_sessions WHERE session_token_hash = ?", [tokenHash]);
+  await mutate(async (db) => {
+    await runStatement(db, "DELETE FROM admin_sessions WHERE session_token_hash = ?", [tokenHash]);
   });
 };
 
@@ -157,9 +157,9 @@ export const getAdminUserFromSession = async (token: string) => {
   const row = rows[0];
   if (!row) return null;
 
-  await mutate((db) => {
-    runStatement(db, "UPDATE admin_sessions SET last_seen_at = ? WHERE session_token_hash = ?", [now, tokenHash]);
-    runStatement(db, "DELETE FROM admin_sessions WHERE expires_at <= ?", [now]);
+  await mutate(async (db) => {
+    await runStatement(db, "UPDATE admin_sessions SET last_seen_at = ? WHERE session_token_hash = ?", [now, tokenHash]);
+    await runStatement(db, "DELETE FROM admin_sessions WHERE expires_at <= ?", [now]);
   });
 
   return mapAdminUser(row);
@@ -172,10 +172,10 @@ export const getCurrentAdminUser = async () => {
   return getAdminUserFromSession(token);
 };
 
-export const requireAdminUser = async () => {
+export const requireAdminUser = async (redirectPath = "/admin") => {
   const user = await getCurrentAdminUser();
   if (!user) {
-    redirect("/admin");
+    redirect(redirectPath);
   }
   return user;
 };
