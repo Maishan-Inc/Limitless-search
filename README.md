@@ -35,12 +35,13 @@
   </tr>
 </table>
 
-## 🆕 版本更新（2026-03-08）
+## 🆕 版本更新（2026-06-14）
 
-- 前端环境变量统一改为在根目录 `docker-compose.yml` 的 `web` 服务中配置
-- 前端默认不再依赖 `web/limitless_search_web/.env`
-- 前端构建时注入的后端地址改为使用 `NEXT_PUBLIC_API_BASE`
-- 修复 hCaptcha 前端渲染与服务端校验问题
+- 架构保留 Next.js 前端/管理端 + Go 搜索后端双服务，并新增 PostgreSQL 作为统一配置与管理数据存储
+- 业务配置不再依赖 `.env`，首次启动后通过 `/install` 安装向导初始化
+- 安装流程包含开源协议确认、运行环境检查、管理员账号创建与自定义后台地址配置
+- 管理后台新增 Settings 配置中心，可视化配置 AI API、人机验证、提示词、排行榜自动任务和核心运行参数
+- Docker Compose 默认启动 `postgres` 与 `limitless-search`，`.env` 仅保留端口、数据库连接等基础设施用途
 
 ## 🌍 多语言支持
 
@@ -87,7 +88,16 @@ docker-compose up -d
 
 4. 访问服务：
 - Web 界面：http://localhost:3200
+- 安装向导：http://localhost:3200/install
 - 后端 API：默认仅在 Docker 内部网络 `http://backend:8888` 可访问，不直接暴露到宿主机
+
+首次部署请打开 `/install`，按页面完成：
+
+1. 滑动阅读并同意开源协议
+2. 检查 Node/PostgreSQL/安装状态
+3. 创建管理员账号，并设置管理员后台地址
+
+安装完成后，管理员登录页只能通过你设置的后台地址访问，例如 `/manage` 或 `/admin-portal`。
 ### 查看日志
 
 ```bash
@@ -100,65 +110,26 @@ docker-compose logs -f
 docker-compose down
 ```
 
-## 🔧 前端环境配置
+## 🔧 安装与配置
 
-Docker 部署不再依赖 `web/limitless_search_web/.env`。前端相关配置统一写在根目录 `docker-compose.yml` 的 `web.build.args` 和 `web.environment` 中。
-
-### Docker 部署配置
-
-可直接在 `docker-compose.yml` 的 `web:` 配置下修改：
-
-```yaml
-web:
-  build:
-    context: ./web/limitless_search_web
-    dockerfile: Dockerfile
-    args:
-      - NEXT_PUBLIC_API_BASE=http://backend:8888
-      - NEXT_PUBLIC_CAPTCHA_PROVIDER=none
-      - NEXT_PUBLIC_TURNSTILE_SITE_KEY=
-      - NEXT_PUBLIC_HCAPTCHA_SITE_KEY=
-      - NEXT_PUBLIC_AI_SUGGEST_ENABLED=true
-      - NEXT_PUBLIC_AI_SUGGEST_THRESHOLD=50
-      - NEXT_PUBLIC_AI_SUGGEST_REQUIRE_CAPTCHA=false
-  environment:
-    - TURNSTILE_SECRET_KEY=
-    - HCAPTCHA_SECRET_KEY=
-    - AI_SUGGEST_BASE_URL=
-    - AI_SUGGEST_MODEL=
-    - AI_SUGGEST_API_KEY=
-    - AI_SUGGEST_PROMPT=
-```
-
-### 本地开发（可选）
-
-如果你是本地运行前端而不是走 Docker，可复制示例文件：
-
-```bash
-cp web/limitless_search_web/.env.example web/limitless_search_web/.env.local
-```
-
-### 配置说明
+业务配置通过 PostgreSQL 保存，并在管理员后台可视化维护。Docker 环境只保留基础设施配置：
 
 | 环境变量 | 描述 | 默认值 |
 |----------|------|--------|
-| `NEXT_PUBLIC_API_BASE` | 前端构建时注入的后端 API 地址 | `http://backend:8888` |
-| `NEXT_PUBLIC_CAPTCHA_PROVIDER` | 人机验证服务提供商 | `none` |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile Site Key | 无 |
-| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile Secret Key | 无 |
-| `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` | hCaptcha Site Key | 无 |
-| `HCAPTCHA_SECRET_KEY` | hCaptcha Secret Key | 无 |
-| `NEXT_PUBLIC_AI_SUGGEST_ENABLED` | 是否启用 AI 推荐 | `true` |
-| `NEXT_PUBLIC_AI_SUGGEST_THRESHOLD` | AI 推荐触发阈值 | `50` |
-| `NEXT_PUBLIC_AI_SUGGEST_REQUIRE_CAPTCHA` | AI 推荐是否要求先完成人机验证 | `false` |
-| `AI_SUGGEST_BASE_URL` | OpenAI 兼容接口地址 | 无 |
-| `AI_SUGGEST_MODEL` | OpenAI 兼容模型名称 | 无 |
-| `AI_SUGGEST_API_KEY` | OpenAI 兼容 API Key | 无 |
-| `AI_SUGGEST_PROMPT` | 自定义提示词 | 内置提示词 |
+| `DATABASE_URL` | Next.js 与 Go 后端读取 PostgreSQL 配置的连接串 | `postgres://limitless:limitless@postgres:5432/limitless_search?sslmode=disable` |
+| `PORT` | Go 后端监听端口 | `8888` |
+| `WEB_PORT` | Next.js 前端监听端口 | `3200` |
+| `NEXT_PUBLIC_API_BASE` | 前端请求同容器 Go 后端的地址 | `http://127.0.0.1:8888` |
 
-> **注意**：Docker 部署时无需创建 `web/limitless_search_web/.env`。只有在本地开发前端时，才需要按需创建 `web/limitless_search_web/.env.local`。
+安装完成后进入后台 Settings，可配置：
 
-> **补充**：当前根目录 `docker-compose.yml` 只对外开放 `3200` 端口，`backend` 的 `8888` 端口仅通过 `limitless-network` 提供给 `web` 容器访问。如需从宿主机直接调试后端，请自行在 `backend` 服务中添加 `ports` 映射。
+- AI API：OpenAI 兼容 Base URL、模型、API Key、搜索建议开关
+- 人机验证：none、Cloudflare Turnstile、hCaptcha 的站点密钥与服务端密钥
+- 提示词：AI 搜索建议、年度/月度/日榜、审核、打分、翻译、校验提示词
+- 排行榜自动任务：启用开关、导航入口、运行时间、时区、启动时执行、同步 Token、数据目录
+- 核心运行参数：TG 频道、启用插件、代理、缓存、异步插件参数、管理员后台地址
+
+> 当前根目录 `docker-compose.yml` 只对外开放 `3200` 端口，Go 后端 `8888` 端口仅在容器内访问。如需从宿主机直接调试后端，请自行在 `limitless-search` 服务中添加 `ports` 映射。
 
 ### Docker 部署更新（推荐）
 
@@ -188,29 +159,9 @@ git pull
 
 ## ⚙️ 配置说明
 
-### 后端环境变量
+### TG 频道配置
 
-在 `docker-compose.yml` 中配置后端服务的环境变量：
-
-| 环境变量 | 描述 | 默认值 |
-|----------|------|--------|
-| `PORT` | 后端监听端口 | `8888` |
-| `CHANNELS` | TG 频道列表（逗号分隔） | 见下方说明 |
-| `ENABLED_PLUGINS` | 启用的插件列表（逗号分隔） | 见下方说明 |
-| `CACHE_ENABLED` | 是否启用缓存 | `true` |
-| `CACHE_PATH` | 缓存路径 | `/app/cache` |
-| `CACHE_MAX_SIZE` | 最大缓存大小(MB) | `100` |
-| `CACHE_TTL` | 缓存有效期(分钟) | `60` |
-| `ASYNC_PLUGIN_ENABLED` | 是否启用异步插件 | `true` |
-| `ASYNC_RESPONSE_TIMEOUT` | 异步响应超时(秒) | `4` |
-| `ASYNC_MAX_BACKGROUND_WORKERS` | 最大后台工作者数量 | `20` |
-| `ASYNC_MAX_BACKGROUND_TASKS` | 最大后台任务数量 | `100` |
-| `ASYNC_CACHE_TTL_HOURS` | 异步缓存有效期(小时) | `1` |
-| `PROXY` | 代理设置（可选） | 无 |
-
-### TG 频道配置 (CHANNELS)
-
-`CHANNELS` 环境变量用于配置要搜索的 Telegram 频道列表，多个频道用逗号分隔。
+安装完成后在管理员后台 `Settings -> Core Runtime -> Channels` 配置要搜索的 Telegram 频道，多个频道用英文逗号分隔。
 
 **当前配置的频道列表：**
 
@@ -231,9 +182,9 @@ SharePanFilms,dzsgx,BooksRealm,Oscar_4Kmovies,douerpan,baidu_yppan,Q_jilupian,
 Netdisk_Movies,yunpanquark,ammmziyuan,ciliziyuanku,cili8888,jzmm_123pan
 ```
 
-### 插件配置 (ENABLED_PLUGINS)
+### 插件配置
 
-`ENABLED_PLUGINS` 环境变量用于配置要启用的搜索插件，多个插件用逗号分隔。
+安装完成后在管理员后台 `Settings -> Core Runtime -> Enabled Plugins` 配置要启用的搜索插件，多个插件用英文逗号分隔。
 
 **当前配置的插件列表：**
 
@@ -247,37 +198,13 @@ ahhhhfs,nsgame,gying,quark4k,quarksoo,sousou,ash
 ```
 
 **插件说明：**
-- 如果不设置 `ENABLED_PLUGINS`，则不启用任何插件
+- 如果不设置 `Enabled Plugins`，则不启用任何插件
 - 设置为空字符串也表示不启用任何插件
 - 只有在列表中的插件才会被启用
 
-### 认证配置（可选）
-
-如需启用 API 认证，取消注释以下环境变量：
-
-```yaml
-environment:
-  - AUTH_ENABLED=true
-  - AUTH_USERS=admin:admin123,user:pass456
-  - AUTH_TOKEN_EXPIRY=24
-  - AUTH_JWT_SECRET=your-secret-key-here
-```
-
-| 环境变量 | 描述 | 默认值 |
-|----------|------|--------|
-| `AUTH_ENABLED` | 是否启用认证 | `false` |
-| `AUTH_USERS` | 用户账号配置（格式：user1:pass1,user2:pass2） | 无 |
-| `AUTH_TOKEN_EXPIRY` | Token 有效期（小时） | `24` |
-| `AUTH_JWT_SECRET` | JWT 签名密钥 | 自动生成 |
-
 ### 代理配置（可选）
 
-如需使用代理访问 Telegram，取消注释以下环境变量：
-
-```yaml
-environment:
-  - PROXY=socks5://proxy:7897
-```
+如需使用代理访问 Telegram，在管理员后台 `Settings -> Core Runtime -> Proxy` 设置代理地址，例如 `socks5://proxy:7897`。
 
 ## 📁 项目结构
 
@@ -297,7 +224,7 @@ environment:
 └── web/
     └── limitless_search_web/   # Web 前端
         ├── Dockerfile
-        ├── .env.example        # 本地开发环境变量示例
+        ├── bootstrap.js        # standalone 启动脚本与排行榜调度器
         └── src/                # 源代码
 ```
 
@@ -345,7 +272,7 @@ curl http://localhost:8888/api/health
 
 ### 1. 如何添加新的 TG 频道？
 
-修改 `docker-compose.yml` 中的 `CHANNELS` 环境变量，添加新的频道名称（用逗号分隔），然后重启服务：
+进入管理员后台 `Settings -> Core Runtime -> Channels`，添加新的频道名称（用逗号分隔）并保存。Go 后端重启后会读取 PostgreSQL 中的最新配置：
 
 ```bash
 docker-compose down
@@ -354,7 +281,7 @@ docker-compose up -d
 
 ### 2. 如何启用/禁用插件？
 
-修改 `docker-compose.yml` 中的 `ENABLED_PLUGINS` 环境变量，然后重启服务。
+进入管理员后台 `Settings -> Core Runtime -> Enabled Plugins` 修改插件列表，保存后重启 Go 后端生效。
 
 ### 3. 搜索结果为空？
 
@@ -364,12 +291,7 @@ docker-compose up -d
 
 ### 4. 如何配置代理？
 
-在 `docker-compose.yml` 中取消注释 `PROXY` 环境变量并设置代理地址：
-
-```yaml
-environment:
-  - PROXY=socks5://your-proxy:port
-```
+进入管理员后台 `Settings -> Core Runtime -> Proxy` 设置代理地址，保存后重启 Go 后端生效。
 
 ## 📄 许可证
 

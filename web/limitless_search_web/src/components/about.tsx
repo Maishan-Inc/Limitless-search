@@ -3,20 +3,15 @@
 import { motion } from "framer-motion"
 import { useLanguage } from "@/lib/i18n"
 import { Copy, Check } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import { useTheme } from "next-themes"
 
 export function About() {
   const { t } = useLanguage()
   const { resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
   const [copied, setCopied] = useState(false)
   const walletAddress = "EWc3cC8kXS3RdK2YhYE1gXX82iuZxqCMjqgMo2R5oXxf"
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const handleCopy = () => {
     navigator.clipboard.writeText(walletAddress)
@@ -107,15 +102,11 @@ export function About() {
                       className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors w-[calc(50%-0.5rem)] md:w-auto"
                     >
                       <div className="flex-shrink-0 w-12 h-12 relative flex items-center justify-center">
-                        {mounted && (
-                          <>
-                            {index === 0 && <Image src={`/img/noad-${getIconSuffix()}.svg`} alt="No Ads" width={48} height={48} className="w-full h-full object-contain" />}
-                            {index === 1 && <Image src={`/img/Languageimg-${getIconSuffix()}.svg`} alt="Language" width={48} height={48} className="w-full h-full object-contain" />}
-                            {index === 2 && <Image src={`/img/golang-${getIconSuffix()}.svg`} alt="Golang" width={48} height={48} className="w-full h-full object-contain" />}
-                            {index === 3 && <Image src={`/img/next-${getIconSuffix()}.svg`} alt="Next.js" width={48} height={48} className="w-full h-full object-contain" />}
-                            {index === 4 && <Image src={`/img/React-${getIconSuffix()}.svg`} alt="React" width={48} height={48} className="w-full h-full object-contain" />}
-                          </>
-                        )}
+                        {index === 0 && <Image src={`/img/noad-${getIconSuffix()}.svg`} alt="No Ads" width={48} height={48} className="w-full h-full object-contain" />}
+                        {index === 1 && <Image src={`/img/Languageimg-${getIconSuffix()}.svg`} alt="Language" width={48} height={48} className="w-full h-full object-contain" />}
+                        {index === 2 && <Image src={`/img/golang-${getIconSuffix()}.svg`} alt="Golang" width={48} height={48} className="w-full h-full object-contain" />}
+                        {index === 3 && <Image src={`/img/next-${getIconSuffix()}.svg`} alt="Next.js" width={48} height={48} className="w-full h-full object-contain" />}
+                        {index === 4 && <Image src={`/img/React-${getIconSuffix()}.svg`} alt="React" width={48} height={48} className="w-full h-full object-contain" />}
                       </div>
                       <p className="text-sm font-medium text-neutral-900 dark:text-white text-center">
                         {advantage}

@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const AI_ENABLED = (process.env.NEXT_PUBLIC_AI_SUGGEST_ENABLED ?? "true").toLowerCase() !== "false";
-const CAPTCHA_PROVIDER = (process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER || "none").toLowerCase();
-
-const AI_BASE = process.env.AI_SUGGEST_BASE_URL?.replace(/\/$/, "") || "";
-const AI_MODEL = process.env.AI_SUGGEST_MODEL || "";
-const AI_API_KEY = process.env.AI_SUGGEST_API_KEY || "";
-const CUSTOM_PROMPT = process.env.AI_SUGGEST_PROMPT || "";
+import { getSettingValue, settingDefinitions } from "@/lib/app-settings";
 
 const safeJsonParse = (input: string) => {
   try {
     return input ? JSON.parse(input) : null;
-  } catch (err) {
+  } catch {
     return null;
   }
 };
 
-const buildPrompt = (language: string) => {
-  if (CUSTOM_PROMPT.trim()) return CUSTOM_PROMPT;
+const buildPrompt = (language: string, customPrompt: string) => {
+  if (customPrompt.trim()) return customPrompt;
   return [
     "You are an anime title resolver.",
     "Input may be long, translated, aliased, or misspelled (often Chinese). Infer the official/original release title; prefer Japanese official title if it exists, otherwise the official English/Romanized title.",
@@ -45,11 +38,17 @@ type AiSuggestion = {
 };
 
 export async function POST(request: NextRequest) {
-  if (!AI_ENABLED) {
+  const aiEnabled = Boolean(await getSettingValue(settingDefinitions.aiSuggestEnabled));
+  if (!aiEnabled) {
     return NextResponse.json({ message: "AI suggestion is disabled" }, { status: 403 });
   }
 
-  if (!AI_BASE || !AI_API_KEY || !AI_MODEL) {
+  const aiBase = String(await getSettingValue(settingDefinitions.aiSuggestBaseUrl) || "").replace(/\/$/, "");
+  const aiModel = String(await getSettingValue(settingDefinitions.aiSuggestModel) || "");
+  const aiApiKey = String(await getSettingValue(settingDefinitions.aiSuggestApiKey) || "");
+  const customPrompt = String(await getSettingValue(settingDefinitions.aiSuggestPrompt) || "");
+
+  if (!aiBase || !aiApiKey || !aiModel) {
     return NextResponse.json(
       { message: "AI configuration missing (base url / api key / model)" },
       { status: 400 },
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
   let body: SuggestBody = {};
   try {
     body = (await request.json()) as SuggestBody;
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
   }
 
@@ -75,20 +74,20 @@ export async function POST(request: NextRequest) {
   const userPrompt = `User search query: "${query}". Current site language: ${language}. Current search results: ${resultCount}. Return JSON with best_query, alternates, reason, original_language. If unsure, output the most likely official title.`;
 
   const upstreamPayload = {
-    model: AI_MODEL,
+    model: aiModel,
     messages: [
-      { role: "system", content: buildPrompt(language) },
+      { role: "system", content: buildPrompt(language, customPrompt) },
       { role: "user", content: userPrompt },
     ],
     temperature: 0.2,
     response_format: { type: "json_object" },
   };
 
-  const upstream = await fetch(`${AI_BASE}/chat/completions`, {
+  const upstream = await fetch(`${aiBase}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${AI_API_KEY}`,
+      Authorization: `Bearer ${aiApiKey}`,
     },
     body: JSON.stringify(upstreamPayload),
   });
@@ -106,7 +105,13 @@ export async function POST(request: NextRequest) {
   }
 
   let suggestion: AiSuggestion | null = null;
-  const parsed = safeJsonParse(text) as any;
+  const parsed = safeJsonParse(text) as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
+  } | null;
   const rawContent: string | undefined = parsed?.choices?.[0]?.message?.content || text;
 
   if (rawContent) {

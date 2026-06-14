@@ -85,8 +85,8 @@ export default async function RankingsPage({
   const initialLanguage = params?.lang
     ? normalizeLanguage(params.lang)
     : detectPreferredLanguage(requestHeaders.get("accept-language"));
-  const enabled = rankingsEnabled();
-  const showRankings = rankingsNavEnabled();
+  const enabled = await rankingsEnabled();
+  const showRankings = await rankingsNavEnabled();
   const dataset = enabled ? await ensureRankingDataset() : null;
 
   return (

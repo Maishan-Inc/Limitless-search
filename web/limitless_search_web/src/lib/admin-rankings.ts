@@ -4,8 +4,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { AdminRankingSection, AdminRankingWorkspace } from "@/lib/admin-preview";
 import { getAdminRankingWorkspace as getFallbackWorkspace } from "@/lib/admin-preview";
-import { allRows, mutate, queryFirstRow, queryRows, queryScalar, runStatement, toNumber, toStringValue } from "@/lib/admin-db";
-import { getRankingDataFile, readRankingDataset, type RankingDataset, type RankingItem, type RankingKey, type RankingTitles } from "@/lib/rankings";
+import { allRows, insertAndReturnId, mutate, queryFirstRow, queryRows, queryScalar, runStatement, toBooleanValue, toNumber, toStringValue } from "@/lib/admin-db";
+import { getRankingDataFileAsync, readRankingDataset, type RankingDataset, type RankingItem, type RankingKey, type RankingTitles } from "@/lib/rankings";
 
 type VersionStatus = "published" | "draft" | "generated";
 type VersionSource = "ai" | "manual" | "clone";
@@ -115,6 +115,18 @@ const getSectionDescription = (key: RankingKey) => {
 const parseTitles = (value: unknown, query: string, fallbackTitle?: string): RankingTitles => {
   const fallback = fallbackTitle || query;
 
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const parsed = value as Partial<RankingTitles>;
+    return {
+      "zh-CN": parsed["zh-CN"] || fallback,
+      "zh-TW": parsed["zh-TW"] || parsed["zh-CN"] || fallback,
+      en: parsed.en || fallback,
+      ja: parsed.ja || fallback,
+      ru: parsed.ru || fallback,
+      fr: parsed.fr || fallback,
+    };
+  }
+
   if (typeof value === "string" && value.trim()) {
     try {
       const parsed = JSON.parse(value) as Partial<RankingTitles>;
@@ -183,7 +195,7 @@ const getVersionRowById = async (versionId: number) => {
   return rows[0] ? mapVersionRow(rows[0]) : null;
 };
 
-const copyVersionIntoDraft = (
+const copyVersionIntoDraft = async (
   db: Parameters<Parameters<typeof mutate>[0]>[0],
   sourceVersion: VersionRow,
   options: {
@@ -195,7 +207,7 @@ const copyVersionIntoDraft = (
 ) => {
   const timestamp = nowIso();
 
-  runStatement(
+  const draftVersionId = await insertAndReturnId(
     db,
     `
     INSERT INTO ranking_versions
@@ -214,25 +226,23 @@ const copyVersionIntoDraft = (
     ],
   );
 
-  const draftVersionId = toNumber(queryScalar(db, "SELECT last_insert_rowid() AS id"));
-  const listRows = queryRows(db, "SELECT * FROM ranking_lists WHERE version_id = ? ORDER BY id ASC", [sourceVersion.id]);
+  const listRows = await queryRows(db, "SELECT * FROM ranking_lists WHERE version_id = ? ORDER BY id ASC", [sourceVersion.id]);
 
-  listRows.forEach((listRow) => {
-    runStatement(
+  for (const listRow of listRows) {
+    const newListId = await insertAndReturnId(
       db,
       "INSERT INTO ranking_lists (version_id, list_key, total) VALUES (?, ?, ?)",
       [draftVersionId, toStringValue(listRow.list_key), toNumber(listRow.total)],
     );
-    const newListId = toNumber(queryScalar(db, "SELECT last_insert_rowid() AS id"));
 
-    const itemRows = queryRows(
+    const itemRows = await queryRows(
       db,
       "SELECT * FROM ranking_items WHERE list_id = ? ORDER BY position ASC, id ASC",
       [toNumber(listRow.id)],
     );
 
-    itemRows.forEach((itemRow) => {
-      runStatement(
+    for (const itemRow of itemRows) {
+      await runStatement(
         db,
         `
         INSERT INTO ranking_items
@@ -247,13 +257,13 @@ const copyVersionIntoDraft = (
           toNumber(itemRow.score),
           itemRow.display_time ? toStringValue(itemRow.display_time) : null,
           itemRow.source_url ? toStringValue(itemRow.source_url) : null,
-          toNumber(itemRow.hidden),
+          toBooleanValue(itemRow.hidden),
           toStringValue(itemRow.source_type),
-          toStringValue(itemRow.titles_json),
+          JSON.stringify(parseTitles(itemRow.titles_json, toStringValue(itemRow.query), toStringValue(itemRow.title))),
         ],
       );
-    });
-  });
+    }
+  }
 
   return draftVersionId;
 };
@@ -298,7 +308,7 @@ const buildSections = (
       query: toStringValue(itemRow.query),
       displayTime: itemRow.display_time ? toStringValue(itemRow.display_time) : undefined,
       sourceUrl: itemRow.source_url ? toStringValue(itemRow.source_url) : undefined,
-      hidden: toNumber(itemRow.hidden) === 1,
+      hidden: toBooleanValue(itemRow.hidden),
       sourceType: toStringValue(itemRow.source_type),
       status:
         version.status === "published"
@@ -333,7 +343,7 @@ const createDatasetFromVersion = async (versionId: number): Promise<RankingDatas
 
   for (const key of rankingOrder) {
     const rowsForList = itemRows.filter(
-      (row) => toStringValue(row.list_key) === key && toNumber(row.hidden) === 0,
+      (row) => toStringValue(row.list_key) === key && !toBooleanValue(row.hidden),
     );
     const items: RankingItem[] = rowsForList.map((row) => ({
       id: String(toNumber(row.id)),
@@ -361,7 +371,7 @@ const createDatasetFromVersion = async (versionId: number): Promise<RankingDatas
 };
 
 const persistPublishedDataset = async (dataset: RankingDataset) => {
-  const filePath = getRankingDataFile();
+  const filePath = await getRankingDataFileAsync();
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, JSON.stringify(dataset, null, 2), "utf8");
 };
@@ -380,36 +390,36 @@ const getCurrentPublishedVersion = async () => {
   return rows[0] ? mapVersionRow(rows[0]) : null;
 };
 
-const recountListTotal = (
+const recountListTotal = async (
   db: Parameters<Parameters<typeof mutate>[0]>[0],
   listId: number,
 ) => {
   const count = toNumber(
-    queryScalar(db, "SELECT COUNT(*) AS count FROM ranking_items WHERE list_id = ?", [listId]),
+    await queryScalar(db, "SELECT COUNT(*) AS count FROM ranking_items WHERE list_id = ?", [listId]),
   );
-  runStatement(db, "UPDATE ranking_lists SET total = ? WHERE id = ?", [count, listId]);
+  await runStatement(db, "UPDATE ranking_lists SET total = ? WHERE id = ?", [count, listId]);
 };
 
-const reindexListPositions = (
+const reindexListPositions = async (
   db: Parameters<Parameters<typeof mutate>[0]>[0],
   listId: number,
 ) => {
-  const itemRows = queryRows(
+  const itemRows = await queryRows(
     db,
     "SELECT id FROM ranking_items WHERE list_id = ? ORDER BY position ASC, id ASC",
     [listId],
   );
 
-  itemRows.forEach((row, index) => {
-    runStatement(db, "UPDATE ranking_items SET position = ? WHERE id = ?", [index + 1, toNumber(row.id)]);
-  });
+  for (const [index, row] of itemRows.entries()) {
+    await runStatement(db, "UPDATE ranking_items SET position = ? WHERE id = ?", [index + 1, toNumber(row.id)]);
+  }
 };
 
-const touchVersion = (
+const touchVersion = async (
   db: Parameters<Parameters<typeof mutate>[0]>[0],
   versionId: number,
 ) => {
-  runStatement(db, "UPDATE ranking_versions SET updated_at = ? WHERE id = ?", [nowIso(), versionId]);
+  await runStatement(db, "UPDATE ranking_versions SET updated_at = ? WHERE id = ?", [nowIso(), versionId]);
 };
 
 const insertVersionFromDataset = (
@@ -423,11 +433,11 @@ const insertVersionFromDataset = (
     notes?: string | null;
   },
 ) =>
-  mutate((db) => {
+  mutate(async (db) => {
     const generatedAt = dataset.generatedAt || nowIso();
     const updatedAt = nowIso();
 
-    runStatement(
+    const versionId = await insertAndReturnId(
       db,
       `
       INSERT INTO ranking_versions
@@ -448,20 +458,15 @@ const insertVersionFromDataset = (
       ],
     );
 
-    const versionId = toNumber(queryScalar(db, "SELECT last_insert_rowid() AS id"));
-
-    (Object.entries(dataset.rankings) as Array<[RankingKey, RankingDataset["rankings"][RankingKey]]>).forEach(
-      ([key, bucket]) => {
-        runStatement(
+    for (const [key, bucket] of Object.entries(dataset.rankings) as Array<[RankingKey, RankingDataset["rankings"][RankingKey]]>) {
+        const listId = await insertAndReturnId(
           db,
           "INSERT INTO ranking_lists (version_id, list_key, total) VALUES (?, ?, ?)",
           [versionId, key, bucket.total],
         );
 
-        const listId = toNumber(queryScalar(db, "SELECT last_insert_rowid() AS id"));
-
-        bucket.items.forEach((item, index) => {
-          runStatement(
+        for (const [index, item] of bucket.items.entries()) {
+          await runStatement(
             db,
             `
             INSERT INTO ranking_items
@@ -476,14 +481,13 @@ const insertVersionFromDataset = (
               item.score,
               item.displayTime || null,
               item.sourceUrl || null,
-              0,
+              false,
               key === "bili_rank" ? "bilibili" : options.sourceType,
               encodeTitles(item.titles, item.titles["zh-CN"] || item.query),
             ],
           );
-        });
-      },
-    );
+        }
+    }
 
     return versionId;
   });
@@ -523,8 +527,8 @@ export const ensureRankingWorkspaceSeeded = async () => {
     const published = publishedRows[0] ? mapVersionRow(publishedRows[0]) : null;
     if (!published) return;
 
-    await mutate((db) => {
-      copyVersionIntoDraft(db, published, {
+    await mutate(async (db) => {
+      await copyVersionIntoDraft(db, published, {
         name: `${published.name} Draft`,
         sourceType: "clone",
         notes: "Auto-cloned from the current published version",
@@ -539,10 +543,10 @@ export const createManualRankingDraft = async (input: {
   month: number;
   createdByEmail?: string | null;
 }) =>
-  mutate((db) => {
+  mutate(async (db) => {
     const timestamp = nowIso();
 
-    runStatement(
+    const versionId = await insertAndReturnId(
       db,
       `
       INSERT INTO ranking_versions
@@ -560,15 +564,13 @@ export const createManualRankingDraft = async (input: {
       ],
     );
 
-    const versionId = toNumber(queryScalar(db, "SELECT last_insert_rowid() AS id"));
-
-    rankingOrder.forEach((key) => {
-      runStatement(
+    for (const key of rankingOrder) {
+      await runStatement(
         db,
         "INSERT INTO ranking_lists (version_id, list_key, total) VALUES (?, ?, 0)",
         [versionId, key],
       );
-    });
+    }
 
     return versionId;
   });
@@ -605,8 +607,8 @@ export const cloneRankingVersionToDraft = async (input: {
   versionId: number;
   createdByEmail?: string | null;
 }) =>
-  mutate((db) => {
-    const row = queryFirstRow(
+  mutate(async (db) => {
+    const row = await queryFirstRow(
       db,
       `
       SELECT id, name, source_type, status, year, month, generated_at, updated_at, published_at, created_by_email, notes
@@ -634,8 +636,8 @@ export const createRankingItem = async (input: {
   versionId: number;
   listKey: RankingKey;
 }) =>
-  mutate((db) => {
-    const versionRow = queryFirstRow(
+  mutate(async (db) => {
+    const versionRow = await queryFirstRow(
       db,
       "SELECT id, status FROM ranking_versions WHERE id = ? LIMIT 1",
       [input.versionId],
@@ -648,7 +650,7 @@ export const createRankingItem = async (input: {
       throw new Error("Only draft versions can be edited");
     }
 
-    const listRow = queryFirstRow(
+    const listRow = await queryFirstRow(
       db,
       "SELECT id FROM ranking_lists WHERE version_id = ? AND list_key = ? LIMIT 1",
       [input.versionId, input.listKey],
@@ -660,31 +662,31 @@ export const createRankingItem = async (input: {
 
     const listId = toNumber(listRow.id);
     const nextPosition =
-      toNumber(queryScalar(db, "SELECT COALESCE(MAX(position), 0) + 1 AS next_position FROM ranking_items WHERE list_id = ?", [listId])) || 1;
+      toNumber(await queryScalar(db, "SELECT COALESCE(MAX(position), 0) + 1 AS next_position FROM ranking_items WHERE list_id = ?", [listId])) || 1;
     const title = "New Ranking Item";
 
-    runStatement(
+    const itemId = await insertAndReturnId(
       db,
       `
       INSERT INTO ranking_items
         (list_id, position, query, title, score, display_time, source_url, hidden, source_type, titles_json)
-      VALUES (?, ?, ?, ?, ?, NULL, NULL, 0, 'manual', ?)
+      VALUES (?, ?, ?, ?, ?, NULL, NULL, FALSE, 'manual', ?)
       `,
       [listId, nextPosition, title, title, 50, encodeTitles(undefined, title)],
     );
 
-    recountListTotal(db, listId);
-    touchVersion(db, input.versionId);
+    await recountListTotal(db, listId);
+    await touchVersion(db, input.versionId);
 
-    return toNumber(queryScalar(db, "SELECT last_insert_rowid() AS id"));
+    return itemId;
   });
 
 export const updateRankingItem = async (input: {
   itemId: number;
   patch: RankingItemPatch;
 }) =>
-  mutate((db) => {
-    const row = queryFirstRow(
+  mutate(async (db) => {
+    const row = await queryFirstRow(
       db,
       `
       SELECT i.id, i.list_id, i.titles_json, l.version_id, v.status
@@ -708,7 +710,7 @@ export const updateRankingItem = async (input: {
     const listId = toNumber(row.list_id);
     const currentTitles = parseTitles(row.titles_json, input.patch.query, input.patch.title);
 
-    runStatement(
+    await runStatement(
       db,
       `
       UPDATE ranking_items
@@ -728,7 +730,7 @@ export const updateRankingItem = async (input: {
         normalizeScore(input.patch.score),
         input.patch.displayTime || null,
         input.patch.sourceUrl || null,
-        input.patch.hidden ? 1 : 0,
+        Boolean(input.patch.hidden),
         encodeTitles(
           {
             ...currentTitles,
@@ -740,17 +742,17 @@ export const updateRankingItem = async (input: {
       ],
     );
 
-    recountListTotal(db, listId);
-    reindexListPositions(db, listId);
-    touchVersion(db, versionId);
+    await recountListTotal(db, listId);
+    await reindexListPositions(db, listId);
+    await touchVersion(db, versionId);
   });
 
 export const moveRankingItem = async (input: {
   itemId: number;
   direction: RankingMoveDirection;
 }) =>
-  mutate((db) => {
-    const currentRow = queryFirstRow(
+  mutate(async (db) => {
+    const currentRow = await queryFirstRow(
       db,
       `
       SELECT i.id, i.list_id, i.position, l.version_id, v.status
@@ -775,7 +777,7 @@ export const moveRankingItem = async (input: {
     const currentPosition = toNumber(currentRow.position);
     const operator = input.direction === "up" ? "<" : ">";
     const order = input.direction === "up" ? "DESC" : "ASC";
-    const neighborRow = queryFirstRow(
+    const neighborRow = await queryFirstRow(
       db,
       `
       SELECT id, position
@@ -794,18 +796,18 @@ export const moveRankingItem = async (input: {
     const neighborId = toNumber(neighborRow.id);
     const neighborPosition = toNumber(neighborRow.position);
 
-    runStatement(db, "UPDATE ranking_items SET position = -1 WHERE id = ?", [input.itemId]);
-    runStatement(db, "UPDATE ranking_items SET position = ? WHERE id = ?", [currentPosition, neighborId]);
-    runStatement(db, "UPDATE ranking_items SET position = ? WHERE id = ?", [neighborPosition, input.itemId]);
+    await runStatement(db, "UPDATE ranking_items SET position = -1 WHERE id = ?", [input.itemId]);
+    await runStatement(db, "UPDATE ranking_items SET position = ? WHERE id = ?", [currentPosition, neighborId]);
+    await runStatement(db, "UPDATE ranking_items SET position = ? WHERE id = ?", [neighborPosition, input.itemId]);
 
-    reindexListPositions(db, listId);
-    touchVersion(db, versionId);
+    await reindexListPositions(db, listId);
+    await touchVersion(db, versionId);
     return true;
   });
 
 export const deleteRankingItem = async (input: { itemId: number }) =>
-  mutate((db) => {
-    const currentRow = queryFirstRow(
+  mutate(async (db) => {
+    const currentRow = await queryFirstRow(
       db,
       `
       SELECT i.id, i.list_id, l.version_id, v.status
@@ -828,18 +830,18 @@ export const deleteRankingItem = async (input: { itemId: number }) =>
     const listId = toNumber(currentRow.list_id);
     const versionId = toNumber(currentRow.version_id);
 
-    runStatement(db, "DELETE FROM ranking_items WHERE id = ?", [input.itemId]);
-    reindexListPositions(db, listId);
-    recountListTotal(db, listId);
-    touchVersion(db, versionId);
+    await runStatement(db, "DELETE FROM ranking_items WHERE id = ?", [input.itemId]);
+    await reindexListPositions(db, listId);
+    await recountListTotal(db, listId);
+    await touchVersion(db, versionId);
   });
 
 export const publishRankingVersion = async (input: {
   versionId: number;
   operatorEmail?: string | null;
 }) => {
-  await mutate((db) => {
-    const row = queryFirstRow(
+  await mutate(async (db) => {
+    const row = await queryFirstRow(
       db,
       "SELECT id FROM ranking_versions WHERE id = ? LIMIT 1",
       [input.versionId],
@@ -851,12 +853,12 @@ export const publishRankingVersion = async (input: {
 
     const publishedAt = nowIso();
 
-    runStatement(
+    await runStatement(
       db,
       "UPDATE ranking_versions SET status = 'generated', published_at = NULL, updated_at = ? WHERE status = 'published' AND id <> ?",
       [publishedAt, input.versionId],
     );
-    runStatement(
+    await runStatement(
       db,
       "UPDATE ranking_versions SET status = 'published', published_at = ?, updated_at = ?, created_by_email = COALESCE(?, created_by_email) WHERE id = ?",
       [publishedAt, publishedAt, input.operatorEmail || null, input.versionId],
