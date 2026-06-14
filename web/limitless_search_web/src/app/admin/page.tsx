@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminAuthPanel } from "@/components/admin/admin-auth-panel";
 import { getCurrentAdminUser } from "@/lib/admin-auth";
 import { getAdminBootstrapData } from "@/lib/admin-service";
+import { isInstalled } from "@/lib/install-state";
 
 export const metadata: Metadata = {
   title: "Admin Login",
@@ -10,6 +11,10 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
+  if (!(await isInstalled())) {
+    redirect("/install");
+  }
+
   const currentUser = await getCurrentAdminUser();
   if (currentUser) {
     redirect("/admin/dashboard");

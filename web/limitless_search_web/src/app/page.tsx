@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import HomeClient from "@/components/home-client";
 import { LanguageInitializer } from "@/components/language-initializer";
 import { detectPreferredLanguage, languageToLocale, normalizeLanguage } from "@/lib/i18n";
+import { isInstalled } from "@/lib/install-state";
 import { readRankingDataset } from "@/lib/rankings";
 import { rankingsEnabled, rankingsNavEnabled } from "@/lib/rankings-config";
 
@@ -138,6 +140,10 @@ export default async function Page({
 }: {
   searchParams?: Promise<{ lang?: string; q?: string; auto?: string }>;
 }) {
+  if (!(await isInstalled())) {
+    redirect("/install");
+  }
+
   const params = await searchParams;
   const requestHeaders = await headers();
   const initialLanguage = params?.lang

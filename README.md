@@ -10,14 +10,14 @@
 
 **新版本测试地址：** [https://search-bate.freeanime.org](https://search-bate.freeanime.org)
 
-**测试版本新增功能：**
-- 新增 AI 动漫排行榜入口与页面（年榜 / 月榜 / 日榜，可展开查看）
-- 榜单条目点击后跳转到主页并自动填写关键词（不自动发起搜索）
-- 支持按当前站点语言使用本地化关键词跳转（中文环境优先中文名称）
-- 排行榜生成支持重试机制、失败日志输出与兜底展示页
-- 支持排行榜 SEO 页面与站点地图自动扩展（可配置开关）
+**2.0 版本新增功能：**
+- 保留 Next.js 前端/管理端 + Go 搜索后端双服务架构
+- 新增 PostgreSQL，用于保存安装状态、管理员账号、会话、排行榜草稿与全部业务配置
+- 新增 `/install` 安装向导：开源协议确认、环境检查、管理员账号和自定义后台地址配置
+- 新增管理员 Settings 配置中心，可视化配置 AI API、人机验证、提示词、排行榜自动任务和核心运行参数
+- 业务配置不再依赖 `.env`，Docker 仅保留端口、数据库连接等基础设施配置
 
-> 由 [Freeanime.org](https://freeanime.org) 赞助 Maishan Inc. 与 Freeanime.org组织 拥有 limitless-search-web 前端页面的全部版权，未经许可禁止商用。
+> limitless-search 2.0 版本后采用 BYCC4，版权归 Maishan Inc. 所有。
 
 ## 📸 界面预览
 
@@ -35,12 +35,12 @@
   </tr>
 </table>
 
-## 🆕 版本更新（2026-03-08）
+## 🆕 版本更新（2026-06-14）
 
-- 前端环境变量统一改为在根目录 `docker-compose.yml` 的 `web` 服务中配置
-- 前端默认不再依赖 `web/limitless_search_web/.env`
-- 前端构建时注入的后端地址改为使用 `NEXT_PUBLIC_API_BASE`
-- 修复 hCaptcha 前端渲染与服务端校验问题
+- 2.0 部署默认使用 Docker Compose 启动 PostgreSQL 与 limitless-search 服务
+- 首次访问 `/install` 完成安装后，再进入自定义管理员后台地址
+- AI、人机验证、提示词、排行榜和核心运行参数统一在后台 Settings 中配置
+- 管理员登录页仅通过安装时设置的后台地址访问
 
 ## 🌍 多语言支持
 
@@ -75,90 +75,86 @@ git clone git@github.com:maishaninc/limitless-search.git
 gh repo clone maishaninc/limitless-search
 ```
 
-2. 进入项目目录：
+2. 进入项目目录
+
 ```bash
 cd limitless-search
 ```
 
-3. 启动服务：
+3. 启动 PostgreSQL 与 limitless-search 双服务
+
+```bash
+docker compose up -d
+```
+
+如果你的 Docker 版本仍使用旧命令，也可以执行：
+
 ```bash
 docker-compose up -d
 ```
 
-4. 访问服务：
+4. 打开安装向导
+
+- 安装页面：http://localhost:3200/install
 - Web 界面：http://localhost:3200
-- 后端 API：默认仅在 Docker 内部网络 `http://backend:8888` 可访问，不直接暴露到宿主机
+- Go 后端：默认仅在容器内部通过 `http://127.0.0.1:8888` 访问，不直接暴露到宿主机
+
+首次部署必须先访问 `/install`，按页面完成：
+
+1. 滑动阅读并同意开源协议
+2. 检查 Node、PostgreSQL、安装状态
+3. 创建管理员账号、密码，并设置管理员后台地址
+
+安装完成后，管理员登录页只能通过你设置的后台地址访问，例如 `/manage` 或 `/admin-portal`。
+
 ### 查看日志
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### 停止服务
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
-## 🔧 前端环境配置
+### Docker 部署更新（推荐）
 
-Docker 部署不再依赖 `web/limitless_search_web/.env`。前端相关配置统一写在根目录 `docker-compose.yml` 的 `web.build.args` 和 `web.environment` 中。
-
-### Docker 部署配置
-
-可直接在 `docker-compose.yml` 的 `web:` 配置下修改：
-
-```yaml
-web:
-  build:
-    context: ./web/limitless_search_web
-    dockerfile: Dockerfile
-    args:
-      - NEXT_PUBLIC_API_BASE=http://backend:8888
-      - NEXT_PUBLIC_CAPTCHA_PROVIDER=none
-      - NEXT_PUBLIC_TURNSTILE_SITE_KEY=
-      - NEXT_PUBLIC_HCAPTCHA_SITE_KEY=
-      - NEXT_PUBLIC_AI_SUGGEST_ENABLED=true
-      - NEXT_PUBLIC_AI_SUGGEST_THRESHOLD=50
-      - NEXT_PUBLIC_AI_SUGGEST_REQUIRE_CAPTCHA=false
-  environment:
-    - TURNSTILE_SECRET_KEY=
-    - HCAPTCHA_SECRET_KEY=
-    - AI_SUGGEST_BASE_URL=
-    - AI_SUGGEST_MODEL=
-    - AI_SUGGEST_API_KEY=
-    - AI_SUGGEST_PROMPT=
-```
-
-### 本地开发（可选）
-
-如果你是本地运行前端而不是走 Docker，可复制示例文件：
+在服务器上更新到最新版本并重新构建：
 
 ```bash
-cp web/limitless_search_web/.env.example web/limitless_search_web/.env.local
+cd limitless-search
+
+git pull
+
+docker compose down
+
+docker compose build --no-cache
+
+docker compose up -d
 ```
 
-### 配置说明
+## 🔧 2.0 配置方式
+
+2.0 版本后，业务配置统一保存到 PostgreSQL，并通过管理员后台 Settings 可视化维护。Docker 环境只保留服务启动必需的基础设施变量：
 
 | 环境变量 | 描述 | 默认值 |
 |----------|------|--------|
-| `NEXT_PUBLIC_API_BASE` | 前端构建时注入的后端 API 地址 | `http://backend:8888` |
-| `NEXT_PUBLIC_CAPTCHA_PROVIDER` | 人机验证服务提供商 | `none` |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile Site Key | 无 |
-| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile Secret Key | 无 |
-| `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` | hCaptcha Site Key | 无 |
-| `HCAPTCHA_SECRET_KEY` | hCaptcha Secret Key | 无 |
-| `NEXT_PUBLIC_AI_SUGGEST_ENABLED` | 是否启用 AI 推荐 | `true` |
-| `NEXT_PUBLIC_AI_SUGGEST_THRESHOLD` | AI 推荐触发阈值 | `50` |
-| `NEXT_PUBLIC_AI_SUGGEST_REQUIRE_CAPTCHA` | AI 推荐是否要求先完成人机验证 | `false` |
-| `AI_SUGGEST_BASE_URL` | OpenAI 兼容接口地址 | 无 |
-| `AI_SUGGEST_MODEL` | OpenAI 兼容模型名称 | 无 |
-| `AI_SUGGEST_API_KEY` | OpenAI 兼容 API Key | 无 |
-| `AI_SUGGEST_PROMPT` | 自定义提示词 | 内置提示词 |
+| `DATABASE_URL` | PostgreSQL 连接串 | `postgres://limitless:limitless@postgres:5432/limitless_search?sslmode=disable` |
+| `PORT` | Go 后端监听端口 | `8888` |
+| `WEB_PORT` | Next.js 前端监听端口 | `3200` |
+| `NEXT_PUBLIC_API_BASE` | 前端请求同容器 Go 后端的地址 | `http://127.0.0.1:8888` |
 
-> **注意**：Docker 部署时无需创建 `web/limitless_search_web/.env`。只有在本地开发前端时，才需要按需创建 `web/limitless_search_web/.env.local`。
+安装完成后进入管理员后台 Settings，可配置：
 
-> **补充**：当前根目录 `docker-compose.yml` 只对外开放 `3200` 端口，`backend` 的 `8888` 端口仅通过 `limitless-network` 提供给 `web` 容器访问。如需从宿主机直接调试后端，请自行在 `backend` 服务中添加 `ports` 映射。
+- AI API：OpenAI 兼容 Base URL、模型、API Key、搜索建议开关
+- 人机验证：none、Cloudflare Turnstile、hCaptcha 的站点密钥与服务端密钥
+- 提示词：AI 搜索建议、年度/月度/日榜、审核、打分、翻译、校验提示词
+- 排行榜自动任务：启用开关、导航入口、运行时间、时区、启动时执行、同步 Token、数据目录
+- 核心运行参数：TG 频道、启用插件、代理、缓存、异步插件参数、管理员后台地址
+
+> 当前根目录 `docker-compose.yml` 只对外开放 `3200` 端口。Go 后端 `8888` 端口仅供同容器/内部网络访问；如需从宿主机直接调试后端，请自行添加 `ports` 映射。
 
 ### Docker 部署更新（推荐）
 
