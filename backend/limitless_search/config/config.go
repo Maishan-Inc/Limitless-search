@@ -63,7 +63,7 @@ func Init() {
 	proxyURL := getProxyURL()
 	pluginTimeoutSeconds := getPluginTimeout()
 	asyncResponseTimeoutSeconds := getAsyncResponseTimeout()
-	
+
 	AppConfig = &Config{
 		DefaultChannels:    getDefaultChannels(),
 		DefaultConcurrency: getDefaultConcurrency(),
@@ -105,9 +105,8 @@ func Init() {
 		AuthUsers:       getAuthUsers(),
 		AuthTokenExpiry: getAuthTokenExpiry(),
 		AuthJWTSecret:   getAuthJWTSecret(),
-
 	}
-	
+
 	// 应用GC配置
 	applyGCSettings()
 	applyDatabaseSettings()
@@ -117,7 +116,7 @@ func Init() {
 func getDefaultChannels() []string {
 	channelsEnv := os.Getenv("CHANNELS")
 	if channelsEnv == "" {
-		return []string{"tgsearchers4"}
+		return append([]string(nil), defaultSearchChannels...)
 	}
 	return strings.Split(channelsEnv, ",")
 }
@@ -131,11 +130,11 @@ func getDefaultConcurrency() int {
 			return concurrency
 		}
 	}
-	
+
 	// 环境变量未设置或无效，使用基于环境变量的简单计算
 	// 计算频道数
 	channelCount := len(getDefaultChannels())
-	
+
 	// 估计插件数（从环境变量或默认值，实际在应用启动后会根据真实插件数调整）
 	pluginCountEnv := os.Getenv("PLUGIN_COUNT")
 	pluginCount := 0
@@ -145,18 +144,18 @@ func getDefaultConcurrency() int {
 			pluginCount = count
 		}
 	}
-	
+
 	// 如果没有指定插件数，默认使用7个（当前已知的插件数）
 	if pluginCount == 0 {
 		pluginCount = 7
 	}
-	
+
 	// 计算并发数 = 频道数 + 插件数 + 10
 	concurrency := channelCount + pluginCount + 10
 	if concurrency < 1 {
 		concurrency = 1 // 确保至少为1
 	}
-	
+
 	return concurrency
 }
 
@@ -166,22 +165,22 @@ func UpdateDefaultConcurrency(pluginCount int) {
 	if AppConfig == nil {
 		return
 	}
-	
+
 	// 只有当未通过环境变量指定并发数时才进行调整
 	concurrencyEnv := os.Getenv("CONCURRENCY")
 	if concurrencyEnv != "" {
 		return
 	}
-	
+
 	// 计算频道数
 	channelCount := len(AppConfig.DefaultChannels)
-	
+
 	// 计算并发数 = 频道数 + 插件数（插件禁用时为0）+ 10
 	concurrency := channelCount + pluginCount + 10
 	if concurrency < 1 {
 		concurrency = 1 // 确保至少为1
 	}
-	
+
 	// 更新配置
 	AppConfig.DefaultConcurrency = concurrency
 }
@@ -329,21 +328,20 @@ func getAsyncPluginEnabled() bool {
 }
 
 // 从环境变量获取启用的插件列表
-// 返回nil表示未设置环境变量（不启用任何插件）
+// 未设置环境变量时使用推荐默认插件
 // 返回[]string{}表示设置为空（不启用任何插件）
 // 返回具体列表表示启用指定插件
 func getEnabledPlugins() []string {
 	plugins, exists := os.LookupEnv("ENABLED_PLUGINS")
 	if !exists {
-		// 未设置环境变量时返回nil，表示不启用任何插件
-		return nil
+		return append([]string(nil), defaultEnabledPlugins...)
 	}
-	
+
 	if plugins == "" {
 		// 设置为空字符串，也表示不启用任何插件
 		return []string{}
 	}
-	
+
 	// 按逗号分割插件名
 	result := make([]string, 0)
 	for _, plugin := range strings.Split(plugins, ",") {
@@ -352,7 +350,7 @@ func getEnabledPlugins() []string {
 			result = append(result, plugin)
 		}
 	}
-	
+
 	return result
 }
 
@@ -378,17 +376,17 @@ func getAsyncMaxBackgroundWorkers() int {
 			return size
 		}
 	}
-	
+
 	// 自动计算：根据CPU核心数计算
 	// 每个CPU核心分配5个工作者，最小20个
 	cpuCount := runtime.NumCPU()
 	workers := cpuCount * 5
-	
+
 	// 确保至少有20个工作者
 	if workers < 20 {
 		workers = 20
 	}
-	
+
 	return workers
 }
 
@@ -401,16 +399,16 @@ func getAsyncMaxBackgroundTasks() int {
 			return size
 		}
 	}
-	
+
 	// 自动计算：工作者数量的5倍，最小100个
 	workers := getAsyncMaxBackgroundWorkers()
 	tasks := workers * 5
-	
+
 	// 确保至少有100个任务
 	if tasks < 100 {
 		tasks = 100
 	}
-	
+
 	return tasks
 }
 
@@ -436,20 +434,20 @@ func getHTTPReadTimeout() time.Duration {
 			return time.Duration(timeout) * time.Second
 		}
 	}
-	
+
 	// 自动计算：默认30秒，异步模式下根据异步响应超时调整
 	timeout := 30 * time.Second
-	
+
 	// 如果启用了异步插件，确保读取超时足够长
 	if getAsyncPluginEnabled() {
 		// 读取超时应该至少是异步响应超时的3倍，确保有足够时间完成异步操作
 		asyncTimeoutSecs := getAsyncResponseTimeout()
-		asyncTimeoutExtended := time.Duration(asyncTimeoutSecs * 3) * time.Second
+		asyncTimeoutExtended := time.Duration(asyncTimeoutSecs*3) * time.Second
 		if asyncTimeoutExtended > timeout {
 			timeout = asyncTimeoutExtended
 		}
 	}
-	
+
 	return timeout
 }
 
@@ -462,20 +460,20 @@ func getHTTPWriteTimeout() time.Duration {
 			return time.Duration(timeout) * time.Second
 		}
 	}
-	
+
 	// 自动计算：默认60秒，但根据插件超时和异步处理时间调整
 	timeout := 60 * time.Second
-	
+
 	// 如果启用了异步插件，确保写入超时足够长
 	pluginTimeoutSecs := getPluginTimeout()
-	
+
 	// 计算1.5倍的插件超时时间（使用整数运算：乘以3再除以2）
-	pluginTimeoutExtended := time.Duration(pluginTimeoutSecs * 3 / 2) * time.Second
-	
+	pluginTimeoutExtended := time.Duration(pluginTimeoutSecs*3/2) * time.Second
+
 	if pluginTimeoutExtended > timeout {
 		timeout = pluginTimeoutExtended
 	}
-	
+
 	return timeout
 }
 
@@ -488,7 +486,7 @@ func getHTTPIdleTimeout() time.Duration {
 			return time.Duration(timeout) * time.Second
 		}
 	}
-	
+
 	// 自动计算：默认120秒，考虑到保持连接的效益
 	return 120 * time.Second
 }
@@ -502,17 +500,17 @@ func getHTTPMaxConns() int {
 			return maxConns
 		}
 	}
-	
+
 	// 自动计算：根据CPU核心数计算
 	// 每个CPU核心分配200个连接，最小1000个
 	cpuCount := runtime.NumCPU()
 	maxConns := cpuCount * 200
-	
+
 	// 确保至少有1000个连接
 	if maxConns < 1000 {
 		maxConns = 1000
 	}
-	
+
 	return maxConns
 }
 
@@ -541,7 +539,7 @@ func getAuthUsers() map[string]string {
 	if usersEnv == "" {
 		return nil
 	}
-	
+
 	users := make(map[string]string)
 	pairs := strings.Split(usersEnv, ",")
 	for _, pair := range pairs {
@@ -590,12 +588,10 @@ func getAuthJWTSecret() string {
 func applyGCSettings() {
 	// 设置GC百分比
 	debug.SetGCPercent(AppConfig.GCPercent)
-	
+
 	// 如果启用内存优化
 	if AppConfig.OptimizeMemory {
 		// 释放操作系统内存
 		debug.FreeOSMemory()
 	}
 }
-
- 

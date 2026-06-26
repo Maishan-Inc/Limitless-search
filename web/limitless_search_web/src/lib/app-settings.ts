@@ -71,6 +71,26 @@ export const seedDefaultSettings = async () => {
           nowIso(),
         ],
       );
+
+      if (
+        (definition.key === settingDefinitions.coreChannels.key ||
+          definition.key === settingDefinitions.coreEnabledPlugins.key) &&
+        Array.isArray(definition.defaultValue) &&
+        definition.defaultValue.length > 0
+      ) {
+        await runStatement(
+          db,
+          `
+          UPDATE app_settings
+          SET value_json = ?::jsonb,
+              updated_at = ?
+          WHERE key = ?
+            AND value_json = '[]'::jsonb
+            AND updated_by_admin_id IS NULL
+          `,
+          [JSON.stringify(definition.defaultValue), nowIso(), definition.key],
+        );
+      }
     }
   });
 };

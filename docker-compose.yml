@@ -30,9 +30,9 @@ services:
     expose:
       - "8888" # 后端监听端口，不开放到主机公网，只在容器内部/同网络内访问
     environment:
-      # 后端监听端口
+      # Runtime-only settings. Business configuration is stored in PostgreSQL
+      # and can be edited after installation from the admin Settings page.
       - PORT=8888
-      # 前端监听端口
       - WEB_PORT=3200
       - DATABASE_URL=postgres://limitless:limitless@postgres:5432/limitless_search?sslmode=disable
       - NEXT_PUBLIC_API_BASE=http://127.0.0.1:8888
@@ -46,7 +46,7 @@ services:
           - web
           - limitless-search
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8888/api/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8888/api/health && wget -q --spider http://localhost:3200/"]
       interval: 30s
       timeout: 5s
       retries: 3

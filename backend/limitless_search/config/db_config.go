@@ -14,39 +14,43 @@ import (
 )
 
 type dbSettings map[string]json.RawMessage
+type dbSettingMeta map[string]bool
 
-func loadDBSettings(ctx context.Context) (dbSettings, error) {
+func loadDBSettings(ctx context.Context) (dbSettings, dbSettingMeta, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer db.Close()
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	rows, err := db.QueryContext(ctx, "SELECT key, value_json FROM app_settings WHERE category = 'core'")
+	rows, err := db.QueryContext(ctx, "SELECT key, value_json, updated_by_admin_id IS NOT NULL FROM app_settings WHERE category = 'core'")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
 	settings := dbSettings{}
+	meta := dbSettingMeta{}
 	for rows.Next() {
 		var key string
 		var raw []byte
-		if err := rows.Scan(&key, &raw); err != nil {
-			return nil, err
+		var changedByAdmin bool
+		if err := rows.Scan(&key, &raw, &changedByAdmin); err != nil {
+			return nil, nil, err
 		}
 		settings[key] = json.RawMessage(raw)
+		meta[key] = changedByAdmin
 	}
 
-	return settings, rows.Err()
+	return settings, meta, rows.Err()
 }
 
 func (settings dbSettings) stringValue(key string) (string, bool) {
@@ -116,7 +120,7 @@ func (settings dbSettings) stringSliceValue(key string) ([]string, bool) {
 }
 
 func applyDatabaseSettings() {
-	settings, err := loadDBSettings(context.Background())
+	settings, meta, err := loadDBSettings(context.Background())
 	if err != nil {
 		log.Printf("[config] database settings unavailable: %v", err)
 		return
@@ -125,11 +129,15 @@ func applyDatabaseSettings() {
 		return
 	}
 
-	if value, ok := settings.stringSliceValue("core.channels"); ok && len(value) > 0 {
-		AppConfig.DefaultChannels = value
+	if value, ok := settings.stringSliceValue("core.channels"); ok {
+		if len(value) > 0 || meta["core.channels"] {
+			AppConfig.DefaultChannels = value
+		}
 	}
 	if value, ok := settings.stringSliceValue("core.enabled_plugins"); ok {
-		AppConfig.EnabledPlugins = value
+		if len(value) > 0 || meta["core.enabled_plugins"] {
+			AppConfig.EnabledPlugins = value
+		}
 	}
 	if value, ok := settings.stringValue("core.proxy"); ok {
 		AppConfig.ProxyURL = value

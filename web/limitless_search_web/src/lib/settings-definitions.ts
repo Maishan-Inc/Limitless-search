@@ -1,3 +1,5 @@
+import { DEFAULT_ENABLED_PLUGINS, DEFAULT_SEARCH_CHANNELS } from "@/lib/default-search-sources";
+
 export type SettingValue = string | number | boolean | string[] | Record<string, unknown> | null;
 
 export type AppSettingDefinition<T extends SettingValue = SettingValue> = {
@@ -41,8 +43,8 @@ export const settingDefinitions = {
   promptTranslate: { key: "prompts.rankings.translate", category: "prompts", defaultValue: "" },
   promptScore: { key: "prompts.rankings.score", category: "prompts", defaultValue: "" },
   promptVerify: { key: "prompts.rankings.verify", category: "prompts", defaultValue: "" },
-  coreChannels: { key: "core.channels", category: "core", defaultValue: [] as string[] },
-  coreEnabledPlugins: { key: "core.enabled_plugins", category: "core", defaultValue: [] as string[] },
+  coreChannels: { key: "core.channels", category: "core", defaultValue: [...DEFAULT_SEARCH_CHANNELS] },
+  coreEnabledPlugins: { key: "core.enabled_plugins", category: "core", defaultValue: [...DEFAULT_ENABLED_PLUGINS] },
   coreProxy: { key: "core.proxy", category: "core", defaultValue: "" },
   coreCacheEnabled: { key: "core.cache.enabled", category: "core", defaultValue: true },
   coreCacheMaxSize: { key: "core.cache.max_size", category: "core", defaultValue: 100 },
