@@ -7,7 +7,54 @@ on:
     tags: [ "v*.*.*" ]  # 匹配类似 v1.0.0 的标签
 
 jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/limitless_search
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/limitless_search/go.mod
+          cache-dependency-path: backend/limitless_search/go.sum
+
+      - name: Run Go tests
+        run: go test ./...
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/limitless_search_web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/limitless_search_web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm exec tsc -- --noEmit --pretty false
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
   build-and-push:
+    needs: [backend-tests, frontend-checks]
     runs-on: ubuntu-latest  # 使用 Ubuntu 环境
     steps:
       # 步骤 1：拉取 GitHub 仓库代码

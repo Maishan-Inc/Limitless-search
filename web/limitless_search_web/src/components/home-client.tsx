@@ -334,9 +334,6 @@ export default function HomeClient({ showRankings = false, runtimeConfig }: Home
       
       const activeToken = token || captchaTokenRef.current;
       
-      console.log("[Search] Config Provider:", CAPTCHA_PROVIDER);
-      console.log("[Search] Active Token:", activeToken ? (activeToken.slice(0, 10) + "...") : "null");
-
       if (activeToken) {
         headers["x-captcha-token"] = activeToken;
         headers["x-captcha-provider"] = CAPTCHA_PROVIDER;
@@ -686,7 +683,6 @@ export default function HomeClient({ showRankings = false, runtimeConfig }: Home
           window.turnstile.render(captchaContainerRef.current, {
             sitekey: TURNSTILE_SITE_KEY,
             callback: (token: string) => {
-              console.log("[Captcha] Turnstile success, token:", token?.slice(0, 10) + "...");
               captchaTokenRef.current = token;
               setShowCaptchaModal(false);
               performSearch(token);
@@ -706,7 +702,6 @@ export default function HomeClient({ showRankings = false, runtimeConfig }: Home
           window.hcaptcha.render(captchaContainerRef.current, {
             sitekey: HCAPTCHA_SITE_KEY,
             callback: (token: string) => {
-              console.log("[Captcha] hCaptcha success, token:", token?.slice(0, 10) + "...");
               captchaTokenRef.current = token;
               setShowCaptchaModal(false);
               performSearch(token);

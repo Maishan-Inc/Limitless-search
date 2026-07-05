@@ -69,7 +69,7 @@ export function AdminAuthPanel({ bootstrap, adminBasePath = "/admin" }: AdminAut
         ? {
             eyebrow: "First Setup",
             title: "Create Admin Account",
-            description: "Admin email, password hash, and session data are stored in SQLite. After setup succeeds, the page redirects directly into the console.",
+            description: "Admin email, password hash, and session data are stored in PostgreSQL. After setup succeeds, the page redirects directly into the console.",
             submit: "Create Admin",
           }
         : {
@@ -257,7 +257,7 @@ export function AdminAuthPanel({ bootstrap, adminBasePath = "/admin" }: AdminAut
                 Storage Model
               </div>
               <p className="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
-                Admin email, password hash, sessions, and ranking versions are designed to persist in SQLite.
+                Admin email, password hash, sessions, and ranking versions are designed to persist in PostgreSQL.
               </p>
             </div>
           </div>

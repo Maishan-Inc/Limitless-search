@@ -1109,9 +1109,9 @@ func (p *BaseAsyncPlugin) updateMainCacheWithFinal(cacheKey string, results []mo
 	
 	// 🔥 增强防重复更新机制 - 使用数据哈希确保真正的去重
 	// 生成结果数据的简单哈希标识
-	dataHash := fmt.Sprintf("%d_%d", len(results), results[0].UniqueID)
+	dataHash := fmt.Sprintf("%d_%s", len(results), results[0].UniqueID)
 	if len(results) > 1 {
-		dataHash += fmt.Sprintf("_%d", results[len(results)-1].UniqueID)
+		dataHash += fmt.Sprintf("_%s", results[len(results)-1].UniqueID)
 	}
 	updateKey := fmt.Sprintf("final_%s_%s_%s_%t", p.name, cacheKey, dataHash, isFinal)
 	

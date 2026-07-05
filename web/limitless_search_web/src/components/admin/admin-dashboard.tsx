@@ -73,7 +73,7 @@ export function AdminDashboard({ preview }: AdminDashboardProps) {
               <h3 className="text-lg font-black tracking-tight text-neutral-900 dark:text-white">Next Integration</h3>
             </div>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
-              <li>Admin setup and session storage in SQLite.</li>
+              <li>Admin setup and session storage in PostgreSQL.</li>
               <li>Protected mutations for ranking drafts.</li>
               <li>Save, publish, rollback, and version comparison.</li>
             </ul>

@@ -323,7 +323,7 @@ export function AdminRankingsManager({ workspace }: AdminRankingsManagerProps) {
             <p className="text-xs uppercase tracking-[0.24em] text-neutral-500 dark:text-neutral-400">Workspace</p>
             <h2 className="mt-2 text-2xl font-black tracking-tight text-neutral-900 dark:text-white">{workspace.draft.name}</h2>
             <p className="mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
-              The console now writes draft edits into SQLite and can publish the chosen version back to the live JSON dataset used by the public rankings page.
+              The console now writes draft edits into PostgreSQL and can publish the chosen version back to the live JSON dataset used by the public rankings page.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -559,7 +559,7 @@ export function AdminRankingsManager({ workspace }: AdminRankingsManagerProps) {
                 <div>
                   <h3 className="text-2xl font-black tracking-tight text-neutral-900 dark:text-white">Versions and Runs</h3>
                   <p className="mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
-                    Each AI run, clone, and manual board is versioned. Publishing a version updates SQLite and writes the live JSON dataset for the public page.
+                    Each AI run, clone, and manual board is versioned. Publishing a version updates PostgreSQL and writes the live JSON dataset for the public page.
                   </p>
                 </div>
               </div>

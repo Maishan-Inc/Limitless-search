@@ -65,7 +65,6 @@ export async function POST(request: NextRequest) {
       status: upstream.status,
       headers: {
         ...(contentType ? { "content-type": contentType } : {}),
-        "X-Debug-Version": "local-config-v1"
       },
     });
   } catch (error) {
