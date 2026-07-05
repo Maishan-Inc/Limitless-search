@@ -46,7 +46,7 @@ services:
           - web
           - limitless-search
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8888/api/health && wget -q --spider http://localhost:3200/"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8888/api/health && wget -q --spider http://localhost:3200/api/install/status"]
       interval: 30s
       timeout: 5s
       retries: 3

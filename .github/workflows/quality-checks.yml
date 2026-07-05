@@ -91,6 +91,11 @@ jobs:
           deadline=$((SECONDS + 180))
           services=("postgres" "limitless-search")
 
+          print_health_log() {
+            local container_id="$1"
+            docker inspect --format '{{range .State.Health.Log}}{{println .Start "exit=" .ExitCode}}{{println .Output}}{{end}}' "$container_id" || true
+          }
+
           while [ "$SECONDS" -lt "$deadline" ]; do
             docker compose ps
 
@@ -107,6 +112,12 @@ jobs:
               echo "${service}: state=${state}, health=${health}"
 
               if [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+                print_health_log "$container_id"
+                exit 1
+              fi
+
+              if [ "$health" = "unhealthy" ]; then
+                print_health_log "$container_id"
                 exit 1
               fi
 
@@ -123,6 +134,12 @@ jobs:
           done
 
           docker compose ps
+          for service in "${services[@]}"; do
+            container_id="$(docker compose ps -q "$service" || true)"
+            if [ -n "$container_id" ]; then
+              print_health_log "$container_id"
+            fi
+          done
           exit 1
 
       - name: Verify install page
