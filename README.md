@@ -35,7 +35,7 @@
   </tr>
 </table>
 
-## 🆕 版本更新（2026-06-14）
+## 🆕 版本更新（2026-07-05）
 
 - 2.0 部署默认使用 Docker Compose 启动 PostgreSQL 与 limitless-search 服务
 - 首次访问 `/install` 完成安装后，再进入自定义管理员后台地址
