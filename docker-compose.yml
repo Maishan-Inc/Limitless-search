@@ -10,10 +10,11 @@ services:
     volumes:
       - limitless-search-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U limitless -d limitless_search"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -h 127.0.0.1"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 60s
     networks:
       - limitless-network
 
