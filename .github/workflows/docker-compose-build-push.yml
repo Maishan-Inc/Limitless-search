@@ -80,9 +80,9 @@ jobs:
         with:
           images: ${{ secrets.DOCKER_HUB_USERNAME }}/limitless-search  # 替换为你的 Docker Hub 仓库名
           tags: |
-            type=ref,event=branch  # 分支触发时，标签为分支名（如 main）
-            type=semver,pattern={{version}}  # 标签触发时，标签为版本号（如 v1.0.0 → 1.0.0）
-            type=semver,pattern={{major}}.{{minor}}  # 标签触发时，额外添加主版本标签（如 1.0）
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
 
       # 步骤 5：main 分支只验证构建，版本标签才推送 Docker 镜像
       - name: Build and push Docker image
